@@ -1,4 +1,6 @@
 use anyhow::{Result, anyhow, bail};
+use eventsource_client::{Client, SSE};
+use futures::TryStreamExt;
 use serde::Deserialize;
 use serde_json::Value;
 use std::fs;
@@ -34,7 +36,19 @@ pub async fn sim(spec_path: String) -> Result<()> {
 
     let simulation = response.json::<Simulation>().await?;
 
-    println!("Created simulation ID {}", simulation.id);
+    let client = eventsource_client::ClientBuilder::for_url(&format!(
+        "http://localhost:8001/simulations/{}/stream",
+        simulation.id
+    ))?
+    .header("Authorization", &format!("Bearer {}", api_key))?
+    .build();
+
+    let mut stream = client.stream().map_ok(|event| match event {
+        SSE::Event(event) => println!("{}", event.data),
+        _ => (),
+    });
+
+    while let Ok(Some(_)) = stream.try_next().await {}
 
     Ok(())
 }
