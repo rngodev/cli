@@ -1,4 +1,5 @@
 mod login;
+mod sim;
 pub mod util;
 
 use anyhow::Result;
@@ -15,13 +16,20 @@ struct Cli {
 #[derive(Debug, Subcommand)]
 enum Commands {
     #[command(arg_required_else_help = true)]
-    Login { api_key: String },
+    Login {
+        api_key: String,
+    },
+    Sim {
+        spec_path: String,
+    },
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let args = Cli::parse();
 
     match args.command {
         Commands::Login { api_key } => login::login(api_key),
+        Commands::Sim { spec_path } => sim::sim(spec_path).await,
     }
 }

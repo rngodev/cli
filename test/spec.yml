@@ -1,0 +1,10 @@
+seed: 1
+entities:
+  users:
+    stream:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
