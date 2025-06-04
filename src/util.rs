@@ -1,12 +1,13 @@
-use std::path::PathBuf;
-
 use anyhow::{Context, Result, anyhow};
 use directories::ProjectDirs;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use std::fs::{self, File};
+use std::io::Write;
+use std::path::PathBuf;
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Serialize, Default)]
 pub struct Config {
-    api_key: Option<String>,
+    pub api_key: Option<String>,
 }
 
 pub fn get_config() -> Result<Config> {
@@ -16,7 +17,21 @@ pub fn get_config() -> Result<Config> {
 
     config
         .try_deserialize::<Config>()
-        .with_context(|| "Failed to parse config")
+        .with_context(|| "Failed to deserialize config")
+}
+
+pub fn set_config(config: Config) -> Result<()> {
+    let mut file_base_path = user_config_file_path()?;
+    file_base_path.set_extension("yml");
+
+    if let Some(parent) = file_base_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    let mut file = File::create(file_base_path).with_context(|| "Failed to open config file")?;
+    let yaml = serde_yaml::to_string(&config).with_context(|| "Failed to serialize config")?;
+    file.write_all(yaml.as_bytes())
+        .with_context(|| "Failed to write config")
 }
 
 fn user_config_file_path() -> Result<PathBuf> {
