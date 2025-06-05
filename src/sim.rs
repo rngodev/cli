@@ -3,12 +3,20 @@ use eventsource_client::{Client, SSE};
 use futures::TryStreamExt;
 use serde::Deserialize;
 use serde_json::Value;
-use std::fs;
+use std::collections::HashMap;
+use std::fs::{self, File, OpenOptions};
+use std::io::{BufWriter, Write};
 use std::path::Path;
 
 #[derive(Debug, Deserialize)]
 struct Simulation {
     id: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct EventData {
+    stream: String,
+    value: Value,
 }
 
 pub async fn sim(spec_path: String) -> Result<()> {
@@ -36,6 +44,10 @@ pub async fn sim(spec_path: String) -> Result<()> {
 
     let simulation = response.json::<Simulation>().await?;
 
+    let simulation_directory = format!(".rngo/simulations/{}", simulation.id);
+    let simulation_directory = Path::new(&simulation_directory);
+    fs::create_dir_all(simulation_directory)?;
+
     let client = eventsource_client::ClientBuilder::for_url(&format!(
         "http://localhost:8001/simulations/{}/stream",
         simulation.id
@@ -43,12 +55,40 @@ pub async fn sim(spec_path: String) -> Result<()> {
     .header("Authorization", &format!("Bearer {}", api_key))?
     .build();
 
-    let mut stream = client.stream().map_ok(|event| match event {
-        SSE::Event(event) => println!("{}", event.data),
-        _ => (),
-    });
+    let mut sse_stream = client.stream();
+    let mut writers: HashMap<String, BufWriter<File>> = HashMap::new();
 
-    while let Ok(Some(_)) = stream.try_next().await {}
+    while let Ok(Some(sse)) = sse_stream.try_next().await {
+        match sse {
+            SSE::Event(event) => match serde_json::from_str::<EventData>(&event.data) {
+                Ok(event_data) => {
+                    if !writers.contains_key(&event_data.stream) {
+                        let stream_path =
+                            simulation_directory.join(format!("{}.jsonl", event_data.stream));
+
+                        let file = OpenOptions::new()
+                            .create(true)
+                            .append(true)
+                            .open(stream_path.clone())
+                            .expect(&format!("Failed to open file at {}", stream_path.display()));
+
+                        writers.insert(event_data.stream.clone(), BufWriter::new(file));
+                    }
+
+                    let writer = writers.get_mut(&event_data.stream).expect("error");
+                    writeln!(writer, "{}", event_data.value)?;
+                }
+                Err(_) => eprintln!("Failed to parse SSE data: {}", event.data),
+            },
+            SSE::Connected(_) => (),
+            SSE::Comment(_) => (),
+        }
+    }
+
+    println!(
+        "Created simulation and drained to {}",
+        simulation_directory.display()
+    );
 
     Ok(())
 }

@@ -1,0 +1,21 @@
+seed: 1
+entities:
+  users:
+    stream:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+  posts:
+    stream:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        author:
+          type: reference
+          entity: users
