@@ -8,11 +8,18 @@ use std::path::PathBuf;
 #[derive(Debug, Deserialize, Serialize, Default)]
 pub struct Config {
     pub api_key: Option<String>,
+    #[serde(default = "default_api_url")]
+    pub api_url: String,
+}
+
+fn default_api_url() -> String {
+    "https://api.rngo.dev".into()
 }
 
 pub fn get_config() -> Result<Config> {
     let config = config::Config::builder()
         .add_source(config::File::from(user_config_file_path()?).required(false))
+        .add_source(config::Environment::with_prefix("RNGO"))
         .build()?;
 
     config

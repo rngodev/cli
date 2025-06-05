@@ -36,7 +36,7 @@ pub async fn sim(spec_path: String) -> Result<()> {
 
     let client = reqwest::Client::new();
     let response = client
-        .post("http://localhost:8001/simulations")
+        .post(format!("{api_url}/simulations", api_url = config.api_url))
         .header("Authorization", format!("Bearer {}", api_key))
         .json(&json)
         .send()
@@ -49,8 +49,9 @@ pub async fn sim(spec_path: String) -> Result<()> {
     fs::create_dir_all(simulation_directory)?;
 
     let client = eventsource_client::ClientBuilder::for_url(&format!(
-        "http://localhost:8001/simulations/{}/stream",
-        simulation.id
+        "{api_url}/simulations/{id}/stream",
+        api_url = config.api_url,
+        id = simulation.id
     ))?
     .header("Authorization", &format!("Bearer {}", api_key))?
     .build();
