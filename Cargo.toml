@@ -1,5 +1,6 @@
 [package]
 name = "rngo"
+description = "Data simulation CLI using api.rngo.dev"
 version = "0.1.0"
 edition = "2024"
 authors = ["Aoife Lee <aoife@rngo.dev>"]
