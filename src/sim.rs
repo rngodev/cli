@@ -1,9 +1,11 @@
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use eventsource_client::{Client, SSE};
 use futures::TryStreamExt;
+use reqwest::StatusCode;
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
+use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::path::Path;
@@ -18,6 +20,67 @@ struct EventData {
     stream: String,
     value: Value,
 }
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum PathPart {
+    Index(i64),
+    Field(String),
+}
+
+#[derive(Debug, Deserialize)]
+struct ProblemIssue {
+    message: String,
+    path: Option<Vec<PathPart>>,
+}
+
+impl fmt::Display for ProblemIssue {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let str = match &self.path {
+            Some(path) => {
+                let mut path_str = "".to_string();
+
+                for path_part in path {
+                    match path_part {
+                        PathPart::Index(i) => path_str += &format!("[{}]", i),
+                        PathPart::Field(s) if path_str.len() > 0 => path_str += &format!(".{}", s),
+                        PathPart::Field(s) => path_str = s.into(),
+                    }
+                }
+
+                &format!("{path}: {message}", path = path_str, message = self.message)
+            }
+            None => &self.message,
+        };
+
+        write!(f, "{}", str)
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct Problem {
+    title: String,
+    issues: Vec<ProblemIssue>,
+}
+
+impl fmt::Display for Problem {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.issues.len() > 0 {
+            let issues = self
+                .issues
+                .iter()
+                .map(|item| format!("  {}", item.to_string()))
+                .collect::<Vec<_>>()
+                .join("\n");
+
+            write!(f, "{title}\n{issues}", title = self.title, issues = issues)
+        } else {
+            write!(f, "{}", self.title)
+        }
+    }
+}
+
+impl std::error::Error for Problem {}
 
 pub async fn sim(spec_path: String) -> Result<()> {
     let path = Path::new(&spec_path);
@@ -41,6 +104,16 @@ pub async fn sim(spec_path: String) -> Result<()> {
         .json(&json)
         .send()
         .await?;
+
+    if response.status() != StatusCode::CREATED {
+        let status = response.status().clone();
+        let problem = response.json::<Problem>().await?;
+
+        return Err(problem).with_context(|| match status {
+            StatusCode::UNPROCESSABLE_ENTITY => "Validation error",
+            _ => "API error",
+        })?;
+    }
 
     let simulation = response.json::<Simulation>().await?;
 
