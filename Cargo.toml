@@ -1,7 +1,14 @@
 [package]
-name = "cli"
+name = "rngo"
 version = "0.1.0"
 edition = "2024"
+authors = ["Aoife Lee <aoife@rngo.dev>"]
+license = "MIT"
+readme = "README.md"
+homepage = "https://rngo.dev"
+repository = "https://github.com/rngodev/cli"
+keywords = ["cli", "data", "testing", "simulation"]
+categories = ["command-line-utilities", "api-bindings", "development-tools", "simulation"]
 
 [dependencies]
 anyhow = "1.0.98"
