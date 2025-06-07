@@ -20,7 +20,7 @@ enum Commands {
         api_key: String,
     },
     Sim {
-        spec_path: String,
+        spec_path: Option<String>,
     },
 }
 

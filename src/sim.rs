@@ -3,7 +3,7 @@ use eventsource_client::{Client, SSE};
 use futures::TryStreamExt;
 use reqwest::StatusCode;
 use serde::Deserialize;
-use serde_json::Value;
+use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
@@ -82,26 +82,23 @@ impl fmt::Display for Problem {
 
 impl std::error::Error for Problem {}
 
-pub async fn sim(spec_path: String) -> Result<()> {
-    let path = Path::new(&spec_path);
-
-    if !path.exists() {
-        bail!("Could not find file {}", spec_path)
-    }
+pub async fn sim(spec_path: Option<String>) -> Result<()> {
+    let spec = if let Some(spec_path) = spec_path {
+        load_spec_from_file(spec_path)?
+    } else {
+        load_spec_from_project_directory()?
+    };
 
     let config = crate::util::get_config()?;
     let api_key = config
         .api_key
         .ok_or_else(|| anyhow!("Could not find API key"))?;
 
-    let contents = fs::read_to_string(path)?;
-    let json: Value = serde_yaml::from_str(&contents)?;
-
     let client = reqwest::Client::new();
     let response = client
         .post(format!("{api_url}/simulations", api_url = config.api_url))
         .header("Authorization", format!("Bearer {}", api_key))
-        .json(&json)
+        .json(&spec)
         .send()
         .await?;
 
@@ -121,7 +118,7 @@ pub async fn sim(spec_path: String) -> Result<()> {
     let simulation_directory = Path::new(&simulation_directory);
     fs::create_dir_all(simulation_directory)?;
 
-    let client = eventsource_client::ClientBuilder::for_url(&format!(
+    let sse_client = eventsource_client::ClientBuilder::for_url(&format!(
         "{api_url}/simulations/{id}/stream",
         api_url = config.api_url,
         id = simulation.id
@@ -129,7 +126,7 @@ pub async fn sim(spec_path: String) -> Result<()> {
     .header("Authorization", &format!("Bearer {}", api_key))?
     .build();
 
-    let mut sse_stream = client.stream();
+    let mut sse_stream = sse_client.stream();
     let mut writers: HashMap<String, BufWriter<File>> = HashMap::new();
 
     while let Ok(Some(sse)) = sse_stream.try_next().await {
@@ -159,10 +156,80 @@ pub async fn sim(spec_path: String) -> Result<()> {
         }
     }
 
+    let response = client
+        .get(format!(
+            "{api_url}/simulations/{id}",
+            api_url = config.api_url,
+            id = simulation.id
+        ))
+        .header("Authorization", format!("Bearer {}", api_key))
+        .send()
+        .await?;
+
+    let simulation = response.json::<Value>().await?;
+
+    let simulation_metadata_directory = simulation_directory.join("metadata");
+    let spec_path = simulation_metadata_directory.join("simulation.json");
+    fs::create_dir_all(simulation_metadata_directory)?;
+    fs::write(spec_path, serde_json::to_string_pretty(&simulation)?)?;
+
     println!(
         "Created simulation and drained to {}",
         simulation_directory.display()
     );
 
     Ok(())
+}
+
+fn load_spec_from_file(spec_path: String) -> Result<Value> {
+    let path = Path::new(&spec_path);
+
+    if !path.exists() {
+        bail!("Could not find file '{}'", spec_path)
+    }
+
+    let file_content = fs::read_to_string(path)?;
+    serde_yaml::from_str(&file_content)
+        .with_context(|| format!("Failed to parse spec file at {}", path.to_string_lossy()))
+}
+
+fn load_spec_from_project_directory() -> Result<Value> {
+    let entities_path = Path::new(".rngo/entities");
+
+    let entity_files = fs::read_dir(entities_path).with_context(|| {
+        format!(
+            "Failed to read from entities directory at '{}'",
+            entities_path.to_string_lossy()
+        )
+    })?;
+
+    let mut entities_map = Map::new();
+
+    for entry in entity_files {
+        let entry = entry?;
+        let path = entry.path();
+
+        let content = fs::read_to_string(&path)?;
+        let yaml_value: serde_yaml::Value = serde_yaml::from_str(&content).with_context(|| {
+            format!("Failed to parse entity file at {}", path.to_string_lossy())
+        })?;
+        let json_value: serde_json::Value = serde_json::to_value(yaml_value)?;
+
+        if let Some(filename) = path.file_stem().and_then(|s| s.to_str()) {
+            entities_map.insert(filename.to_string(), json_value);
+        }
+    }
+
+    if entities_map.len() == 0 {
+        bail!(
+            "No entities found under {}",
+            entities_path.to_string_lossy()
+        )
+    }
+
+    let mut spec = Map::new();
+    spec.insert("seed".into(), 1.into());
+    spec.insert("entities".into(), serde_json::Value::Object(entities_map));
+
+    Ok(serde_json::Value::Object(spec))
 }

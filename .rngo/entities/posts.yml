@@ -1,0 +1,10 @@
+stream:
+  type: object
+  properties:
+    id:
+      type: integer
+    title:
+      type: string
+    author:
+      type: reference
+      entity: users
