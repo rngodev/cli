@@ -9,6 +9,10 @@ homepage = "https://rngo.dev"
 repository = "https://github.com/rngodev/cli"
 keywords = ["cli", "data", "testing", "simulation"]
 categories = ["command-line-utilities", "api-bindings", "development-tools", "simulation"]
+exclude = [
+    "test/*",
+    ".rngo/*"
+]
 
 [dependencies]
 anyhow = "1.0.98"
