@@ -1,0 +1,11 @@
+name: test
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Display environment info
+        run: rustup --version && rustup show
+      - name: Run tests
+        run: cargo test
