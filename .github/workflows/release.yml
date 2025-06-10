@@ -36,6 +36,7 @@ jobs:
       - name: Build
         run: cargo build --release --target ${{ matrix.target }}
       - name: Package binary
+        shell: bash
         run: |
           BIN_NAME=rngo
           OUT=dist/${BIN_NAME}-${{ matrix.target }}${{ matrix.bin_ext }}
