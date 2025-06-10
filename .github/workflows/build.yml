@@ -1,0 +1,19 @@
+name: build
+on: push
+jobs:
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Display environment info
+        run: rustup --version && rustup show
+      - name: Run clippy
+        run: cargo clippy --all-targets --all-features
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Display environment info
+        run: rustup --version && rustup show
+      - name: Run tests
+        run: cargo test
