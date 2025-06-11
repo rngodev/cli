@@ -38,11 +38,19 @@ jobs:
       - name: Package binary
         shell: bash
         run: |
-          BIN_NAME=rngo
-          OUT=dist/${BIN_NAME}-${{ matrix.target }}${{ matrix.bin_ext }}
+          BIN=rngo${{ matrix.bin_ext }}
+          BIN_PATH=dist/${BIN}
+          ZIP_PATH=dist/rngo-${{ github.ref_name }}-${{ matrix.target }}.zip
+
           mkdir -p dist
-          cp target/${{ matrix.target }}/release/$BIN_NAME${{ matrix.bin_ext }} $OUT
+          cp target/${{ matrix.target }}/release/${BIN} $BIN_PATH
+
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            7z a $ZIP_PATH $BIN_PATH
+          else
+            zip $ZIP_PATH $BIN_PATH
+          fi
       - name: Create release
         uses: softprops/action-gh-release@v2.2.2
         with:
-          files: dist/*
+          files: dist/*.zip
