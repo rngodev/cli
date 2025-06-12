@@ -1,5 +1,5 @@
 [package]
-name = "rngo"
+name = "rngo-cli"
 description = "Data simulation CLI using api.rngo.dev"
 version = "0.2.4"
 edition = "2024"
@@ -14,6 +14,10 @@ exclude = [
     "test/*",
     ".rngo/*"
 ]
+
+[[bin]]
+name = "rngo"           # This is the binary name (what `cargo install` provides)
+path = "src/main.rs"
 
 [dependencies]
 anyhow = "1.0.98"
