@@ -1,8 +1,11 @@
 use crate::util::{Config, set_config};
 use anyhow::Result;
+use inquire::Password;
 
-pub fn login(api_key: String) -> Result<()> {
+pub async fn login() -> Result<()> {
     let config = crate::util::get_config()?;
+
+    let api_key = Password::new("API Key:").without_confirmation().prompt()?;
 
     let new_config = Config {
         api_key: Some(api_key),
