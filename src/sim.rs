@@ -2,7 +2,7 @@ use anyhow::{Context, Result, anyhow, bail};
 use eventsource_client::{Client, SSE};
 use futures::TryStreamExt;
 use reqwest::StatusCode;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::fmt;
@@ -15,7 +15,7 @@ struct Simulation {
     id: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct EventData {
     stream: String,
     value: Value,
@@ -82,7 +82,7 @@ impl fmt::Display for Problem {
 
 impl std::error::Error for Problem {}
 
-pub async fn sim(spec_path: Option<String>) -> Result<()> {
+pub async fn sim(spec_path: Option<String>, stream: bool) -> Result<()> {
     let spec = if let Some(spec_path) = spec_path {
         load_spec_from_file(spec_path)?
     } else {
@@ -116,7 +116,10 @@ pub async fn sim(spec_path: Option<String>) -> Result<()> {
 
     let simulation_directory = format!(".rngo/simulations/{}", simulation.id);
     let simulation_directory = Path::new(&simulation_directory);
-    fs::create_dir_all(simulation_directory)?;
+
+    if !stream {
+        fs::create_dir_all(simulation_directory)?;
+    }
 
     let sse_client = eventsource_client::ClientBuilder::for_url(&format!(
         "{api_url}/simulations/{id}/stream",
@@ -133,21 +136,28 @@ pub async fn sim(spec_path: Option<String>) -> Result<()> {
         match sse {
             SSE::Event(event) => match serde_json::from_str::<EventData>(&event.data) {
                 Ok(event_data) => {
-                    if !writers.contains_key(&event_data.stream) {
-                        let stream_path =
-                            simulation_directory.join(format!("{}.jsonl", event_data.stream));
+                    if stream {
+                        println!("{}", serde_json::to_string(&event_data)?);
+                    } else {
+                        if !writers.contains_key(&event_data.stream) {
+                            let stream_path =
+                                simulation_directory.join(format!("{}.jsonl", event_data.stream));
 
-                        let file = OpenOptions::new()
-                            .create(true)
-                            .append(true)
-                            .open(stream_path.clone())
-                            .expect(&format!("Failed to open file at {}", stream_path.display()));
+                            let file = OpenOptions::new()
+                                .create(true)
+                                .append(true)
+                                .open(stream_path.clone())
+                                .expect(&format!(
+                                    "Failed to open file at {}",
+                                    stream_path.display()
+                                ));
 
-                        writers.insert(event_data.stream.clone(), BufWriter::new(file));
+                            writers.insert(event_data.stream.clone(), BufWriter::new(file));
+                        }
+
+                        let writer = writers.get_mut(&event_data.stream).expect("error");
+                        writeln!(writer, "{}", event_data.value)?;
                     }
-
-                    let writer = writers.get_mut(&event_data.stream).expect("error");
-                    writeln!(writer, "{}", event_data.value)?;
                 }
                 Err(_) => eprintln!("Failed to parse SSE data: {}", event.data),
             },
@@ -156,27 +166,29 @@ pub async fn sim(spec_path: Option<String>) -> Result<()> {
         }
     }
 
-    let response = client
-        .get(format!(
-            "{api_url}/simulations/{id}",
-            api_url = config.api_url,
-            id = simulation.id
-        ))
-        .header("Authorization", format!("Bearer {}", api_key))
-        .send()
-        .await?;
+    if !stream {
+        let response = client
+            .get(format!(
+                "{api_url}/simulations/{id}",
+                api_url = config.api_url,
+                id = simulation.id
+            ))
+            .header("Authorization", format!("Bearer {}", api_key))
+            .send()
+            .await?;
 
-    let simulation = response.json::<Value>().await?;
+        let simulation = response.json::<Value>().await?;
 
-    let simulation_metadata_directory = simulation_directory.join("metadata");
-    let spec_path = simulation_metadata_directory.join("simulation.json");
-    fs::create_dir_all(simulation_metadata_directory)?;
-    fs::write(spec_path, serde_json::to_string_pretty(&simulation)?)?;
+        let simulation_metadata_directory = simulation_directory.join("metadata");
+        let spec_path = simulation_metadata_directory.join("simulation.json");
+        fs::create_dir_all(simulation_metadata_directory)?;
+        fs::write(spec_path, serde_json::to_string_pretty(&simulation)?)?;
 
-    println!(
-        "Created simulation and drained to {}",
-        simulation_directory.display()
-    );
+        println!(
+            "Created simulation and drained to {}",
+            simulation_directory.display()
+        );
+    }
 
     Ok(())
 }

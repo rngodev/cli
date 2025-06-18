@@ -16,9 +16,19 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
+    /// Log into the rngo API.
     Login {},
+    /// Log out of the rngo API.
     Logout {},
-    Sim { spec_path: Option<String> },
+    /// Creates a simulation and downloads the data.
+    Sim {
+        /// Path to the simulation spec file.
+        spec_path: Option<String>,
+
+        /// Stream the simulation data to stdout
+        #[arg(short, long)]
+        stream: bool,
+    },
 }
 
 #[tokio::main]
@@ -28,6 +38,6 @@ async fn main() -> Result<()> {
     match args.command {
         Commands::Login {} => login::login().await,
         Commands::Logout {} => logout::logout().await,
-        Commands::Sim { spec_path } => sim::sim(spec_path).await,
+        Commands::Sim { spec_path, stream } => sim::sim(spec_path, stream).await,
     }
 }
