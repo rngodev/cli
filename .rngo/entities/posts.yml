@@ -1,8 +1,10 @@
+output:
+  type: sql
 stream:
   type: object
   properties:
     id:
-      type: integer
+      type: id.integer
     title:
       type: string
     author:

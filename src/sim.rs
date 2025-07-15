@@ -9,15 +9,42 @@ use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::path::Path;
+use std::process::{Command, Stdio};
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+enum OutputType {
+    Sql,
+    Json,
+}
+
+#[derive(Debug, Deserialize)]
+struct Output {
+    #[serde(rename = "type")]
+    otype: OutputType,
+}
+
+#[derive(Debug, Deserialize)]
+struct System {
+    output: Output,
+}
+
+#[derive(Debug, Deserialize)]
+struct Entity {
+    output: Option<Output>,
+    system: Option<System>,
+}
 
 #[derive(Debug, Deserialize)]
 struct Simulation {
     id: String,
+    entities: HashMap<String, Entity>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 struct EventData {
-    stream: String,
+    entity: String,
+    offset: i64,
     value: Value,
 }
 
@@ -130,7 +157,8 @@ pub async fn sim(spec_path: Option<String>, stream: bool) -> Result<()> {
     .build();
 
     let mut sse_stream = sse_client.stream();
-    let mut writers: HashMap<String, BufWriter<File>> = HashMap::new();
+
+    let mut entity_sinks = entity_sinks_for_simulation(&simulation)?;
 
     while let Ok(Some(sse)) = sse_stream.try_next().await {
         match sse {
@@ -139,24 +167,14 @@ pub async fn sim(spec_path: Option<String>, stream: bool) -> Result<()> {
                     if stream {
                         println!("{}", serde_json::to_string(&event_data)?);
                     } else {
-                        if !writers.contains_key(&event_data.stream) {
-                            let stream_path =
-                                simulation_directory.join(format!("{}.jsonl", event_data.stream));
+                        if let Some(entity_sink) = entity_sinks.get_mut(&event_data.entity) {
+                            let value = match entity_sink.output_type {
+                                OutputType::Json => &event_data.value.to_string(),
+                                _ => event_data.value.as_str().unwrap(),
+                            };
 
-                            let file = OpenOptions::new()
-                                .create(true)
-                                .append(true)
-                                .open(stream_path.clone())
-                                .expect(&format!(
-                                    "Failed to open file at {}",
-                                    stream_path.display()
-                                ));
-
-                            writers.insert(event_data.stream.clone(), BufWriter::new(file));
+                            writeln!(entity_sink.writer, "{}", value)?
                         }
-
-                        let writer = writers.get_mut(&event_data.stream).expect("error");
-                        writeln!(writer, "{}", event_data.value)?;
                     }
                 }
                 Err(_) => eprintln!("Failed to parse SSE data: {}", event.data),
@@ -244,4 +262,49 @@ fn load_spec_from_project_directory() -> Result<Value> {
     spec.insert("entities".into(), serde_json::Value::Object(entities_map));
 
     Ok(serde_json::Value::Object(spec))
+}
+
+struct EntitySink {
+    output_type: OutputType,
+    writer: Box<dyn Write>,
+}
+
+fn entity_sinks_for_simulation(simulation: &Simulation) -> Result<HashMap<String, EntitySink>> {
+    let mut writers = HashMap::new();
+    let simulation_directory = format!(".rngo/simulations/{}", simulation.id);
+    let simulation_directory = Path::new(&simulation_directory);
+
+    for (key, entity) in simulation.entities.iter() {
+        if let Some(output) = &entity.output {
+            let extension = match output.otype {
+                OutputType::Sql => "sql",
+                OutputType::Json => "jsonl",
+            };
+
+            let file_path = simulation_directory.join(format!("{}.{}", key, extension));
+
+            let file = OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(file_path.clone())
+                .expect(&format!("Failed to open file at {}", file_path.display()));
+
+            let entity_sink = EntitySink {
+                output_type: output.otype.clone(),
+                writer: Box::new(BufWriter::new(file)),
+            };
+
+            writers.insert(key.clone(), entity_sink);
+        } else if let Some(_system) = &entity.system {
+            // let mut child = Command::new("sqlite3")
+            //     .arg("test.db")
+            //     .stdin(Stdio::piped())
+            //     .stdout(Stdio::inherit())
+            //     .spawn()?;
+
+            // let child_stdin = child.stdin.take().expect("No stdin");
+        }
+    }
+
+    Ok(writers)
 }
