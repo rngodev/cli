@@ -18,27 +18,40 @@ enum OutputType {
     Json,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 struct Output {
     #[serde(rename = "type")]
     otype: OutputType,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
+struct SystemImport {
+    command: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
 struct System {
     output: Output,
+    import: SystemImport,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
+struct EntitySystem {
+    #[serde(rename = "type")]
+    stype: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
 struct Entity {
     output: Option<Output>,
-    system: Option<System>,
+    system: Option<EntitySystem>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 struct Simulation {
     id: String,
     entities: HashMap<String, Entity>,
+    systems: HashMap<String, System>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -158,7 +171,7 @@ pub async fn sim(spec_path: Option<String>, stream: bool) -> Result<()> {
 
     let mut sse_stream = sse_client.stream();
 
-    let mut entity_sinks = entity_sinks_for_simulation(&simulation)?;
+    let mut simulation_sink = SimulationSink::try_from(simulation.clone())?;
 
     while let Ok(Some(sse)) = sse_stream.try_next().await {
         match sse {
@@ -167,14 +180,7 @@ pub async fn sim(spec_path: Option<String>, stream: bool) -> Result<()> {
                     if stream {
                         println!("{}", serde_json::to_string(&event_data)?);
                     } else {
-                        if let Some(entity_sink) = entity_sinks.get_mut(&event_data.entity) {
-                            let value = match entity_sink.output_type {
-                                OutputType::Json => &event_data.value.to_string(),
-                                _ => event_data.value.as_str().unwrap(),
-                            };
-
-                            writeln!(entity_sink.writer, "{}", value)?
-                        }
+                        simulation_sink.write_event(event_data);
                     }
                 }
                 Err(_) => eprintln!("Failed to parse SSE data: {}", event.data),
@@ -224,9 +230,10 @@ fn load_spec_from_file(spec_path: String) -> Result<Value> {
 }
 
 fn load_spec_from_project_directory() -> Result<Value> {
-    let entities_path = Path::new(".rngo/entities");
+    let rngo_path = Path::new(".rngo");
+    let entities_path = rngo_path.join("entities");
 
-    let entity_files = fs::read_dir(entities_path).with_context(|| {
+    let entity_files = fs::read_dir(entities_path.clone()).with_context(|| {
         format!(
             "Failed to read from entities directory at '{}'",
             entities_path.to_string_lossy()
@@ -257,54 +264,149 @@ fn load_spec_from_project_directory() -> Result<Value> {
         )
     }
 
+    let systems_path = rngo_path.join("systems");
+    let mut systems_map = Map::new();
+
+    if systems_path.is_dir() {
+        let system_files = fs::read_dir(systems_path.clone()).with_context(|| {
+            format!(
+                "Failed to read from systems directory at '{}'",
+                systems_path.to_string_lossy()
+            )
+        })?;
+
+        for system in system_files {
+            let system = system?;
+            let path = system.path();
+
+            let content = fs::read_to_string(&path)?;
+            let yaml_value: serde_yaml::Value = serde_yaml::from_str(&content)
+                .with_context(|| format!("Failed to parse file at {}", path.to_string_lossy()))?;
+            let json_value: serde_json::Value = serde_json::to_value(yaml_value)?;
+
+            if let Some(filename) = path.file_stem().and_then(|s| s.to_str()) {
+                systems_map.insert(filename.to_string(), json_value);
+            }
+        }
+    }
+
     let mut spec = Map::new();
     spec.insert("seed".into(), 1.into());
+    if !systems_map.is_empty() {
+        spec.insert("systems".into(), serde_json::Value::Object(systems_map));
+    }
     spec.insert("entities".into(), serde_json::Value::Object(entities_map));
 
     Ok(serde_json::Value::Object(spec))
 }
 
-struct EntitySink {
+struct SimulationSinkEntity {
+    system_key: String,
     output_type: OutputType,
-    writer: Box<dyn Write>,
 }
 
-fn entity_sinks_for_simulation(simulation: &Simulation) -> Result<HashMap<String, EntitySink>> {
-    let mut writers = HashMap::new();
-    let simulation_directory = format!(".rngo/simulations/{}", simulation.id);
-    let simulation_directory = Path::new(&simulation_directory);
+struct SimulationSink {
+    entities: HashMap<String, SimulationSinkEntity>,
+    system_sinks: HashMap<String, Box<dyn Write>>,
+}
 
-    for (key, entity) in simulation.entities.iter() {
-        if let Some(output) = &entity.output {
-            let extension = match output.otype {
-                OutputType::Sql => "sql",
-                OutputType::Json => "jsonl",
-            };
+impl SimulationSink {
+    fn write_event(&mut self, event_data: EventData) {
+        if let Some(entity) = self.entities.get(&event_data.entity) {
+            if let Some(system_sink) = self.system_sinks.get_mut(&entity.system_key) {
+                let value = match entity.output_type {
+                    OutputType::Json => &event_data.value.to_string(),
+                    _ => event_data.value.as_str().unwrap(),
+                };
 
-            let file_path = simulation_directory.join(format!("{}.{}", key, extension));
+                dbg!(value);
 
-            let file = OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(file_path.clone())
-                .expect(&format!("Failed to open file at {}", file_path.display()));
-
-            let entity_sink = EntitySink {
-                output_type: output.otype.clone(),
-                writer: Box::new(BufWriter::new(file)),
-            };
-
-            writers.insert(key.clone(), entity_sink);
-        } else if let Some(_system) = &entity.system {
-            // let mut child = Command::new("sqlite3")
-            //     .arg("test.db")
-            //     .stdin(Stdio::piped())
-            //     .stdout(Stdio::inherit())
-            //     .spawn()?;
-
-            // let child_stdin = child.stdin.take().expect("No stdin");
+                let _ = writeln!(system_sink, "{}", value);
+            }
         }
     }
+}
 
-    Ok(writers)
+impl TryFrom<Simulation> for SimulationSink {
+    type Error = anyhow::Error;
+
+    fn try_from(simulation: Simulation) -> Result<Self> {
+        let mut simulation_sink = SimulationSink {
+            system_sinks: HashMap::new(),
+            entities: HashMap::new(),
+        };
+
+        let simulation_directory = format!(".rngo/simulations/{}", simulation.id);
+        let simulation_directory = Path::new(&simulation_directory);
+
+        for (key, entity) in simulation.entities.iter() {
+            if let Some(entity_system) = &entity.system {
+                let system = simulation
+                    .systems
+                    .get(&entity_system.stype)
+                    .with_context(|| {
+                        format!("Could not resolve system type {}", entity_system.stype)
+                    })?;
+
+                let command_parts: Vec<&str> = system.import.command.split_whitespace().collect();
+
+                let mut child = Command::new(command_parts[0].to_string())
+                    .args(&command_parts[1..])
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::inherit())
+                    .spawn()
+                    .with_context(|| {
+                        format!(
+                            "Could not run import command for system {}:\n\n{}",
+                            entity_system.stype, system.import.command
+                        )
+                    })?;
+
+                let child_stdin = child.stdin.take().expect("No stdin");
+
+                let system_key = entity_system.stype.clone();
+
+                simulation_sink.entities.insert(
+                    key.clone(),
+                    SimulationSinkEntity {
+                        system_key: system_key.clone(),
+                        output_type: system.output.otype.clone(),
+                    },
+                );
+
+                simulation_sink
+                    .system_sinks
+                    .insert(system_key, Box::new(child_stdin));
+            } else if let Some(output) = &entity.output {
+                let (extension, system_type) = match output.otype {
+                    OutputType::Sql => ("sql", "sql"),
+                    OutputType::Json => ("jsonl", "json"),
+                };
+
+                let file_path = simulation_directory.join(format!("{}.{}", key, extension));
+
+                let file = OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(file_path.clone())
+                    .expect(&format!("Failed to open file at {}", file_path.display()));
+
+                let system_key = format!("{}_{}", system_type, key);
+
+                simulation_sink.entities.insert(
+                    key.clone(),
+                    SimulationSinkEntity {
+                        system_key: system_key.clone(),
+                        output_type: output.otype.clone(),
+                    },
+                );
+
+                simulation_sink
+                    .system_sinks
+                    .insert(system_key, Box::new(BufWriter::new(file)));
+            }
+        }
+
+        Ok(simulation_sink)
+    }
 }

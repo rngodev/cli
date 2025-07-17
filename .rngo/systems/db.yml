@@ -1,0 +1,4 @@
+output:
+  type: sql
+import:
+  command: sqlite3 test.db
