@@ -1,3 +1,4 @@
+git pull --ff-only
 VERSION=$(grep '^version' Cargo.toml | head -n1 | sed -E 's/version *= *"([^"]+)"/\1/')
 git add Cargo.toml Cargo.lock
 git commit -m "$VERSION"
