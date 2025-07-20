@@ -1,59 +1,19 @@
-mod simulation_sink;
+mod model;
+mod problem;
+mod sink;
+mod spec;
 
-use anyhow::{Context, Result, anyhow, bail};
+use crate::sim::model::Simulation;
+use crate::sim::problem::Problem;
+use anyhow::{Context, Result, anyhow};
 use eventsource_client::{Client, SSE};
 use futures::TryStreamExt;
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
-use simulation_sink::SimulationSink;
-use std::collections::HashMap;
-use std::fmt;
+use serde_json::Value;
+use sink::SimulationSink;
 use std::fs;
 use std::path::Path;
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-enum OutputType {
-    Sql,
-    Json,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-struct Output {
-    #[serde(rename = "type")]
-    otype: OutputType,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-struct SystemImport {
-    command: String,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-struct System {
-    output: Output,
-    import: SystemImport,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-struct EntitySystem {
-    #[serde(rename = "type")]
-    stype: String,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-struct Entity {
-    output: Option<Output>,
-    system: Option<EntitySystem>,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-struct Simulation {
-    id: String,
-    entities: HashMap<String, Entity>,
-    systems: HashMap<String, System>,
-}
 
 #[derive(Debug, Deserialize, Serialize)]
 struct EventData {
@@ -62,72 +22,11 @@ struct EventData {
     value: Value,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-enum PathPart {
-    Index(i64),
-    Field(String),
-}
-
-#[derive(Debug, Deserialize)]
-struct ProblemIssue {
-    message: String,
-    path: Option<Vec<PathPart>>,
-}
-
-impl fmt::Display for ProblemIssue {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let str = match &self.path {
-            Some(path) => {
-                let mut path_str = "".to_string();
-
-                for path_part in path {
-                    match path_part {
-                        PathPart::Index(i) => path_str += &format!("[{}]", i),
-                        PathPart::Field(s) if path_str.len() > 0 => path_str += &format!(".{}", s),
-                        PathPart::Field(s) => path_str = s.into(),
-                    }
-                }
-
-                &format!("{path}: {message}", path = path_str, message = self.message)
-            }
-            None => &self.message,
-        };
-
-        write!(f, "{}", str)
-    }
-}
-
-#[derive(Debug, Deserialize)]
-struct Problem {
-    title: String,
-    issues: Vec<ProblemIssue>,
-}
-
-impl fmt::Display for Problem {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.issues.len() > 0 {
-            let issues = self
-                .issues
-                .iter()
-                .map(|item| format!("  {}", item.to_string()))
-                .collect::<Vec<_>>()
-                .join("\n");
-
-            write!(f, "{title}\n{issues}", title = self.title, issues = issues)
-        } else {
-            write!(f, "{}", self.title)
-        }
-    }
-}
-
-impl std::error::Error for Problem {}
-
 pub async fn sim(spec_path: Option<String>, stream: bool) -> Result<()> {
     let spec = if let Some(spec_path) = spec_path {
-        load_spec_from_file(spec_path)?
+        spec::load_spec_from_file(spec_path)?
     } else {
-        load_spec_from_project_directory()?
+        spec::load_spec_from_project_directory()?
     };
 
     let config = crate::util::get_config()?;
@@ -216,87 +115,4 @@ pub async fn sim(spec_path: Option<String>, stream: bool) -> Result<()> {
     }
 
     Ok(())
-}
-
-fn load_spec_from_file(spec_path: String) -> Result<Value> {
-    let path = Path::new(&spec_path);
-
-    if !path.exists() {
-        bail!("Could not find file '{}'", spec_path)
-    }
-
-    let file_content = fs::read_to_string(path)?;
-    serde_yaml::from_str(&file_content)
-        .with_context(|| format!("Failed to parse spec file at {}", path.to_string_lossy()))
-}
-
-fn load_spec_from_project_directory() -> Result<Value> {
-    let rngo_path = Path::new(".rngo");
-    let entities_path = rngo_path.join("entities");
-
-    let entity_files = fs::read_dir(entities_path.clone()).with_context(|| {
-        format!(
-            "Failed to read from entities directory at '{}'",
-            entities_path.to_string_lossy()
-        )
-    })?;
-
-    let mut entities_map = Map::new();
-
-    for entry in entity_files {
-        let entry = entry?;
-        let path = entry.path();
-
-        let content = fs::read_to_string(&path)?;
-        let yaml_value: serde_yaml::Value = serde_yaml::from_str(&content).with_context(|| {
-            format!("Failed to parse entity file at {}", path.to_string_lossy())
-        })?;
-        let json_value: serde_json::Value = serde_json::to_value(yaml_value)?;
-
-        if let Some(filename) = path.file_stem().and_then(|s| s.to_str()) {
-            entities_map.insert(filename.to_string(), json_value);
-        }
-    }
-
-    if entities_map.len() == 0 {
-        bail!(
-            "No entities found under {}",
-            entities_path.to_string_lossy()
-        )
-    }
-
-    let systems_path = rngo_path.join("systems");
-    let mut systems_map = Map::new();
-
-    if systems_path.is_dir() {
-        let system_files = fs::read_dir(systems_path.clone()).with_context(|| {
-            format!(
-                "Failed to read from systems directory at '{}'",
-                systems_path.to_string_lossy()
-            )
-        })?;
-
-        for system in system_files {
-            let system = system?;
-            let path = system.path();
-
-            let content = fs::read_to_string(&path)?;
-            let yaml_value: serde_yaml::Value = serde_yaml::from_str(&content)
-                .with_context(|| format!("Failed to parse file at {}", path.to_string_lossy()))?;
-            let json_value: serde_json::Value = serde_json::to_value(yaml_value)?;
-
-            if let Some(filename) = path.file_stem().and_then(|s| s.to_str()) {
-                systems_map.insert(filename.to_string(), json_value);
-            }
-        }
-    }
-
-    let mut spec = Map::new();
-    spec.insert("seed".into(), 1.into());
-    if !systems_map.is_empty() {
-        spec.insert("systems".into(), serde_json::Value::Object(systems_map));
-    }
-    spec.insert("entities".into(), serde_json::Value::Object(entities_map));
-
-    Ok(serde_json::Value::Object(spec))
 }

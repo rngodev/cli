@@ -1,4 +1,5 @@
-use crate::sim::{EventData, OutputType, Simulation};
+use crate::sim::model::OutputType;
+use crate::sim::{EventData, Simulation};
 use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::fs::OpenOptions;
