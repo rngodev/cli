@@ -1,5 +1,5 @@
 system:
-  type: db
+  type: db1
 stream:
   type: object
   properties:
