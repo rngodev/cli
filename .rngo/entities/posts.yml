@@ -1,8 +1,10 @@
+system:
+  type: db1
 stream:
   type: object
   properties:
     id:
-      type: integer
+      type: id.integer
     title:
       type: string
     author:

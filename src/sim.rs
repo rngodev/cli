@@ -1,92 +1,32 @@
-use anyhow::{Context, Result, anyhow, bail};
+mod model;
+mod problem;
+mod sink;
+mod spec;
+
+use crate::sim::model::Simulation;
+use crate::sim::problem::Problem;
+use anyhow::{Context, Result, anyhow};
 use eventsource_client::{Client, SSE};
 use futures::TryStreamExt;
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
-use std::collections::HashMap;
-use std::fmt;
-use std::fs::{self, File, OpenOptions};
-use std::io::{BufWriter, Write};
+use serde_json::Value;
+use sink::SimulationSink;
+use std::fs;
 use std::path::Path;
-
-#[derive(Debug, Deserialize)]
-struct Simulation {
-    id: String,
-}
 
 #[derive(Debug, Deserialize, Serialize)]
 struct EventData {
-    stream: String,
+    entity: String,
+    offset: i64,
     value: Value,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-enum PathPart {
-    Index(i64),
-    Field(String),
-}
-
-#[derive(Debug, Deserialize)]
-struct ProblemIssue {
-    message: String,
-    path: Option<Vec<PathPart>>,
-}
-
-impl fmt::Display for ProblemIssue {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let str = match &self.path {
-            Some(path) => {
-                let mut path_str = "".to_string();
-
-                for path_part in path {
-                    match path_part {
-                        PathPart::Index(i) => path_str += &format!("[{}]", i),
-                        PathPart::Field(s) if path_str.len() > 0 => path_str += &format!(".{}", s),
-                        PathPart::Field(s) => path_str = s.into(),
-                    }
-                }
-
-                &format!("{path}: {message}", path = path_str, message = self.message)
-            }
-            None => &self.message,
-        };
-
-        write!(f, "{}", str)
-    }
-}
-
-#[derive(Debug, Deserialize)]
-struct Problem {
-    title: String,
-    issues: Vec<ProblemIssue>,
-}
-
-impl fmt::Display for Problem {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.issues.len() > 0 {
-            let issues = self
-                .issues
-                .iter()
-                .map(|item| format!("  {}", item.to_string()))
-                .collect::<Vec<_>>()
-                .join("\n");
-
-            write!(f, "{title}\n{issues}", title = self.title, issues = issues)
-        } else {
-            write!(f, "{}", self.title)
-        }
-    }
-}
-
-impl std::error::Error for Problem {}
-
 pub async fn sim(spec_path: Option<String>, stream: bool) -> Result<()> {
     let spec = if let Some(spec_path) = spec_path {
-        load_spec_from_file(spec_path)?
+        spec::load_spec_from_file(spec_path)?
     } else {
-        load_spec_from_project_directory()?
+        spec::load_spec_from_project_directory()?
     };
 
     let config = crate::util::get_config()?;
@@ -114,7 +54,8 @@ pub async fn sim(spec_path: Option<String>, stream: bool) -> Result<()> {
 
     let simulation = response.json::<Simulation>().await?;
 
-    let simulation_directory = format!(".rngo/simulations/{}", simulation.id);
+    let simulation_id = &simulation.id;
+    let simulation_directory = format!(".rngo/simulations/{}", simulation_id);
     let simulation_directory = Path::new(&simulation_directory);
 
     if !stream {
@@ -130,7 +71,8 @@ pub async fn sim(spec_path: Option<String>, stream: bool) -> Result<()> {
     .build();
 
     let mut sse_stream = sse_client.stream();
-    let mut writers: HashMap<String, BufWriter<File>> = HashMap::new();
+
+    let mut simulation_sink = SimulationSink::try_from(simulation.clone())?;
 
     while let Ok(Some(sse)) = sse_stream.try_next().await {
         match sse {
@@ -139,24 +81,7 @@ pub async fn sim(spec_path: Option<String>, stream: bool) -> Result<()> {
                     if stream {
                         println!("{}", serde_json::to_string(&event_data)?);
                     } else {
-                        if !writers.contains_key(&event_data.stream) {
-                            let stream_path =
-                                simulation_directory.join(format!("{}.jsonl", event_data.stream));
-
-                            let file = OpenOptions::new()
-                                .create(true)
-                                .append(true)
-                                .open(stream_path.clone())
-                                .expect(&format!(
-                                    "Failed to open file at {}",
-                                    stream_path.display()
-                                ));
-
-                            writers.insert(event_data.stream.clone(), BufWriter::new(file));
-                        }
-
-                        let writer = writers.get_mut(&event_data.stream).expect("error");
-                        writeln!(writer, "{}", event_data.value)?;
+                        simulation_sink.write_event(event_data);
                     }
                 }
                 Err(_) => eprintln!("Failed to parse SSE data: {}", event.data),
@@ -184,64 +109,8 @@ pub async fn sim(spec_path: Option<String>, stream: bool) -> Result<()> {
         fs::create_dir_all(simulation_metadata_directory)?;
         fs::write(spec_path, serde_json::to_string_pretty(&simulation)?)?;
 
-        println!(
-            "Created simulation and drained to {}",
-            simulation_directory.display()
-        );
+        println!("Created and drained simulation {}", simulation_id);
     }
 
     Ok(())
-}
-
-fn load_spec_from_file(spec_path: String) -> Result<Value> {
-    let path = Path::new(&spec_path);
-
-    if !path.exists() {
-        bail!("Could not find file '{}'", spec_path)
-    }
-
-    let file_content = fs::read_to_string(path)?;
-    serde_yaml::from_str(&file_content)
-        .with_context(|| format!("Failed to parse spec file at {}", path.to_string_lossy()))
-}
-
-fn load_spec_from_project_directory() -> Result<Value> {
-    let entities_path = Path::new(".rngo/entities");
-
-    let entity_files = fs::read_dir(entities_path).with_context(|| {
-        format!(
-            "Failed to read from entities directory at '{}'",
-            entities_path.to_string_lossy()
-        )
-    })?;
-
-    let mut entities_map = Map::new();
-
-    for entry in entity_files {
-        let entry = entry?;
-        let path = entry.path();
-
-        let content = fs::read_to_string(&path)?;
-        let yaml_value: serde_yaml::Value = serde_yaml::from_str(&content).with_context(|| {
-            format!("Failed to parse entity file at {}", path.to_string_lossy())
-        })?;
-        let json_value: serde_json::Value = serde_json::to_value(yaml_value)?;
-
-        if let Some(filename) = path.file_stem().and_then(|s| s.to_str()) {
-            entities_map.insert(filename.to_string(), json_value);
-        }
-    }
-
-    if entities_map.len() == 0 {
-        bail!(
-            "No entities found under {}",
-            entities_path.to_string_lossy()
-        )
-    }
-
-    let mut spec = Map::new();
-    spec.insert("seed".into(), 1.into());
-    spec.insert("entities".into(), serde_json::Value::Object(entities_map));
-
-    Ok(serde_json::Value::Object(spec))
 }
