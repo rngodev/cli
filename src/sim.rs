@@ -86,20 +86,16 @@ pub async fn sim(spec_path: Option<String>, stream: bool) -> Result<()> {
 
     let mut sse_stream = sse_client.stream();
 
-    let mut simulation_sink = SimulationSink::try_from(simulation.clone())?;
+    let mut simulation_sink = if stream {
+        SimulationSink::stream()
+    } else {
+        SimulationSink::try_from(simulation.clone())?
+    };
 
     while let Ok(Some(sse)) = sse_stream.try_next().await {
         match sse {
             SSE::Event(event) => match serde_json::from_str::<EventData>(&event.data) {
-                Ok(event_data) => {
-                    if stream {
-                        println!("{}", serde_json::to_string(&event_data)?);
-                    } else if let EventData::Error { .. } = event_data {
-                        eprintln!("Error: {}", serde_json::to_string(&event_data)?);
-                    } else {
-                        simulation_sink.write_event(event_data);
-                    }
-                }
+                Ok(event_data) => simulation_sink.write_event(event_data),
                 Err(_) => eprintln!("Failed to parse SSE data: {}", event.data),
             },
             SSE::Connected(_) => (),

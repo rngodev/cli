@@ -10,6 +10,7 @@ use std::process::{Command, Stdio};
 pub struct SimulationSink {
     entities: HashMap<String, Entity>,
     system_sinks: HashMap<String, Box<dyn Write>>,
+    stream: bool,
 }
 
 struct Entity {
@@ -18,8 +19,26 @@ struct Entity {
 }
 
 impl SimulationSink {
+    pub fn stream() -> Self {
+        SimulationSink {
+            system_sinks: HashMap::new(),
+            entities: HashMap::new(),
+            stream: true,
+        }
+    }
+
     pub fn write_event(&mut self, event_data: EventData) {
-        if let EventData::Create { entity, value, .. } = event_data {
+        if let EventData::Error { .. } = event_data {
+            match serde_json::to_string(&event_data) {
+                Ok(str) => eprintln!("Error: {}", str),
+                Err(_) => (),
+            }
+        } else if self.stream {
+            match serde_json::to_string(&event_data) {
+                Ok(str) => println!("{}", str),
+                Err(_) => (),
+            }
+        } else if let EventData::Create { entity, value, .. } = event_data {
             if let Some(entity) = self.entities.get(&entity) {
                 if let Some(system_sink) = self.system_sinks.get_mut(&entity.system_key) {
                     let value = match entity.output_type {
@@ -41,6 +60,7 @@ impl TryFrom<Simulation> for SimulationSink {
         let mut simulation_sink = SimulationSink {
             system_sinks: HashMap::new(),
             entities: HashMap::new(),
+            stream: false,
         };
 
         let simulation_directory = format!(".rngo/simulations/{}", simulation.id);
