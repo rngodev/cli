@@ -16,10 +16,24 @@ use std::fs;
 use std::path::Path;
 
 #[derive(Debug, Deserialize, Serialize)]
-struct EventData {
-    entity: String,
-    offset: i64,
-    value: Value,
+#[serde(untagged)]
+pub enum EventData {
+    Create {
+        entity: String,
+        offset: i64,
+        value: Value,
+    },
+    Error {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        entity: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        offset: Option<i64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        id: Option<Value>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        path: Option<Vec<String>>,
+        message: String,
+    },
 }
 
 pub async fn sim(spec_path: Option<String>, stream: bool) -> Result<()> {
@@ -80,6 +94,8 @@ pub async fn sim(spec_path: Option<String>, stream: bool) -> Result<()> {
                 Ok(event_data) => {
                     if stream {
                         println!("{}", serde_json::to_string(&event_data)?);
+                    } else if let EventData::Error { .. } = event_data {
+                        eprintln!("Error: {}", serde_json::to_string(&event_data)?);
                     } else {
                         simulation_sink.write_event(event_data);
                     }

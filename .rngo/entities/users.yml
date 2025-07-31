@@ -1,5 +1,5 @@
-output:
-  type: json
+system:
+  type: db1
 stream:
   type: object
   properties:
