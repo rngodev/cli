@@ -121,7 +121,8 @@ pub async fn sim(spec_path: Option<String>, stream: bool) -> Result<()> {
         fs::create_dir_all(simulation_metadata_directory)?;
         fs::write(spec_path, serde_json::to_string_pretty(&simulation)?)?;
 
-        println!("Created and drained simulation {}", simulation_id);
+        println!("Created and drained simulation");
+        println!("See https://rngo.dev/simulations/{}", simulation_id);
     }
 
     Ok(())

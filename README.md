@@ -9,7 +9,7 @@ See [rngo.dev/docs/cli](https://rngo.dev/docs/cli).
 Set up the database, run the checked-in simulation and inspect the db:
 
 ```bash
-sqlite3 db1.sqlite < test/db1-schema.sql\
+sqlite3 db1.sqlite < test/db1-schema.sql
 cargo run sim
 sqlite3 db1.sqlite
 ```
