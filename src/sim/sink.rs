@@ -19,14 +19,16 @@ struct Entity {
 
 impl SimulationSink {
     pub fn write_event(&mut self, event_data: EventData) {
-        if let Some(entity) = self.entities.get(&event_data.entity) {
-            if let Some(system_sink) = self.system_sinks.get_mut(&entity.system_key) {
-                let value = match entity.output_type {
-                    OutputType::Json => &event_data.value.to_string(),
-                    _ => event_data.value.as_str().unwrap(),
-                };
+        if let EventData::Create { entity, value, .. } = event_data {
+            if let Some(entity) = self.entities.get(&entity) {
+                if let Some(system_sink) = self.system_sinks.get_mut(&entity.system_key) {
+                    let value = match entity.output_type {
+                        OutputType::Json => &value.to_string(),
+                        _ => value.as_str().unwrap(),
+                    };
 
-                let _ = writeln!(system_sink, "{}", value);
+                    let _ = writeln!(system_sink, "{}", value);
+                }
             }
         }
     }

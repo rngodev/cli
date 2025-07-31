@@ -8,5 +8,9 @@ stream:
     title:
       type: string
     author:
-      type: reference
-      entity: users
+      type: function
+      expression: user.id
+      variables:
+        user:
+          type: reference
+          entity: users
