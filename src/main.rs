@@ -48,7 +48,7 @@ async fn main() -> Result<()> {
     match args.command {
         Commands::Login {} => login::login().await,
         Commands::Logout {} => logout::logout().await,
-        Commands::Infer { command } => infer::infer(command).await,
+        Commands::Infer { .. } => infer::infer().await,
         Commands::Sim { spec_path, stream } => sim::sim(spec_path, stream).await,
     }
 }

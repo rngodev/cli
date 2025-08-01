@@ -1,9 +1,8 @@
-use crate::InferCommands;
 use anyhow::Result;
 use reqwest::StatusCode;
 
-pub async fn infer(command: InferCommands) -> Result<()> {
-    let config = crate::util::get_config()?;
+pub async fn infer() -> Result<()> {
+    let config = crate::util::config::get_config()?;
     let client = reqwest::Client::new();
 
     let response = client

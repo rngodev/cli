@@ -43,7 +43,7 @@ pub async fn sim(spec_path: Option<String>, stream: bool) -> Result<()> {
         spec::load_spec_from_project_directory()?
     };
 
-    let config = crate::util::get_config()?;
+    let config = crate::util::config::get_config()?;
     let api_key = config
         .api_key
         .ok_or_else(|| anyhow!("Could not find API key"))?;

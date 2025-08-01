@@ -1,9 +1,9 @@
-use crate::util::{Config, set_config};
+use crate::util::config::{Config, get_config, set_config};
 use anyhow::Result;
 use inquire::Confirm;
 
 pub async fn logout() -> Result<()> {
-    let config = crate::util::get_config()?;
+    let config = get_config()?;
 
     if config.api_key.is_none() {
         println!("You are not logged in");
