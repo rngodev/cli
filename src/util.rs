@@ -10,10 +10,16 @@ pub struct Config {
     pub api_key: Option<String>,
     #[serde(default = "default_api_url")]
     pub api_url: String,
+    #[serde(default = "default_docs_url")]
+    pub docs_url: String,
 }
 
 fn default_api_url() -> String {
     "https://api.rngo.dev".into()
+}
+
+fn default_docs_url() -> String {
+    "https://rngo.dev/docs".into()
 }
 
 pub fn get_config() -> Result<Config> {

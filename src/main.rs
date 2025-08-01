@@ -1,3 +1,4 @@
+mod infer;
 mod login;
 mod logout;
 mod sim;
@@ -20,6 +21,10 @@ enum Commands {
     Login {},
     /// Log out of the rngo API.
     Logout {},
+    Infer {
+        #[command(subcommand)]
+        command: InferCommands,
+    },
     /// Creates a simulation and downloads the data.
     Sim {
         /// Path to the simulation spec file.
@@ -31,6 +36,11 @@ enum Commands {
     },
 }
 
+#[derive(Debug, Subcommand)]
+enum InferCommands {
+    Prompt {},
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Cli::parse();
@@ -38,6 +48,7 @@ async fn main() -> Result<()> {
     match args.command {
         Commands::Login {} => login::login().await,
         Commands::Logout {} => logout::logout().await,
+        Commands::Infer { command } => infer::infer(command).await,
         Commands::Sim { spec_path, stream } => sim::sim(spec_path, stream).await,
     }
 }
