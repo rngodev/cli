@@ -1,5 +1,5 @@
-use crate::sim::model::OutputType;
 use crate::sim::{EventData, Simulation};
+use crate::util::model::OutputType;
 use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::fs::OpenOptions;
@@ -66,9 +66,10 @@ impl TryFrom<Simulation> for SimulationSink {
         let simulation_directory = format!(".rngo/simulations/{}", simulation.id);
         let simulation_directory = Path::new(&simulation_directory);
 
-        for (key, entity) in simulation.entities.iter() {
+        for (key, entity) in simulation.spec.entities.iter() {
             if let Some(entity_system) = &entity.system {
                 let system = simulation
+                    .spec
                     .systems
                     .get(&entity_system.stype)
                     .with_context(|| {
