@@ -2,3 +2,7 @@ output:
   type: sql
 import:
   command: sqlite3 db1.sqlite
+infer:
+  context:
+    description: migration file
+    command: cat ./test/db1-schema.sql

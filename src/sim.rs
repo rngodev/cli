@@ -1,10 +1,8 @@
-mod model;
 mod problem;
 mod sink;
-mod spec;
 
-use crate::sim::model::Simulation;
 use crate::sim::problem::Problem;
+use crate::util::model::Simulation;
 use anyhow::{Context, Result, anyhow};
 use eventsource_client::{Client, SSE};
 use futures::TryStreamExt;
@@ -38,12 +36,12 @@ pub enum EventData {
 
 pub async fn sim(spec_path: Option<String>, stream: bool) -> Result<()> {
     let spec = if let Some(spec_path) = spec_path {
-        spec::load_spec_from_file(spec_path)?
+        crate::util::spec::load_spec_from_file(spec_path)?
     } else {
-        spec::load_spec_from_project_directory()?
+        crate::util::spec::load_spec_from_project_directory()?
     };
 
-    let config = crate::util::get_config()?;
+    let config = crate::util::config::get_config()?;
     let api_key = config
         .api_key
         .ok_or_else(|| anyhow!("Could not find API key"))?;

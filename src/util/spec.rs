@@ -50,6 +50,20 @@ pub fn load_spec_from_project_directory() -> Result<Value> {
         )
     }
 
+    let systems_map = load_systems_from_project_directory()?;
+
+    let mut spec = Map::new();
+    spec.insert("seed".into(), 1.into());
+    if !systems_map.is_empty() {
+        spec.insert("systems".into(), serde_json::Value::Object(systems_map));
+    }
+    spec.insert("entities".into(), serde_json::Value::Object(entities_map));
+
+    Ok(serde_json::Value::Object(spec))
+}
+
+pub fn load_systems_from_project_directory() -> Result<Map<String, Value>> {
+    let rngo_path = Path::new(".rngo");
     let systems_path = rngo_path.join("systems");
     let mut systems_map = Map::new();
 
@@ -76,12 +90,5 @@ pub fn load_spec_from_project_directory() -> Result<Value> {
         }
     }
 
-    let mut spec = Map::new();
-    spec.insert("seed".into(), 1.into());
-    if !systems_map.is_empty() {
-        spec.insert("systems".into(), serde_json::Value::Object(systems_map));
-    }
-    spec.insert("entities".into(), serde_json::Value::Object(entities_map));
-
-    Ok(serde_json::Value::Object(spec))
+    Ok(systems_map)
 }

@@ -20,9 +20,21 @@ pub struct SystemImport {
 }
 
 #[derive(Clone, Debug, Deserialize)]
+pub struct SystemInferContext {
+    pub description: Option<String>,
+    pub command: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct SystemInfer {
+    pub context: Option<SystemInferContext>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
 pub struct System {
     pub output: Output,
     pub import: SystemImport,
+    pub infer: Option<SystemInfer>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -38,8 +50,14 @@ pub struct Entity {
 }
 
 #[derive(Clone, Debug, Deserialize)]
-pub struct Simulation {
-    pub id: String,
+pub struct Spec {
     pub entities: HashMap<String, Entity>,
     pub systems: HashMap<String, System>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct Simulation {
+    pub id: String,
+    #[serde(flatten)]
+    pub spec: Spec,
 }
