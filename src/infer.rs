@@ -33,7 +33,7 @@ pub async fn infer() -> Result<()> {
             .map(|context| (context.description, context.command));
 
         if let Some(context_parts) = context_parts {
-            let mut system_prompt = format!("## System {key}");
+            let mut system_prompt = format!("### System {key}");
 
             match context_parts {
                 (Some(description), _) => {
@@ -63,8 +63,14 @@ pub async fn infer() -> Result<()> {
         }
     }
 
+    let inference_instructions = if system_prompts.is_empty() {
+        "No systems in this project provide context, so you should infer entity definitions from migrations files, schema defintions and data access code."
+    } else {
+        "The remainder of this section contains context about each system for this application. You should use it to infer entity definitions."
+    };
+
     let system_prompts = system_prompts.join("\n\n");
-    println!("{prompt}\n{system_prompts}");
+    println!("{prompt}\n{inference_instructions}\n\n{system_prompts}");
 
     Ok(())
 }
