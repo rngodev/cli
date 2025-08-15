@@ -13,40 +13,27 @@ pub async fn init() -> Result<()> {
     let rngo_dir = current_dir.join(".rngo");
     if !rngo_dir.exists() {
         fs::create_dir_all(&rngo_dir).context("Failed to create .rngo directory")?;
-        println!("Created .rngo directory");
     }
 
     // Create spec.yml file
     let spec_path = rngo_dir.join("spec.yml");
     if spec_path.exists() {
-        println!("spec.yml already exists, skipping creation");
+        println!(".rngo/spec.yml already exists");
     } else {
         let spec_content = format!(
             r#"key: {}
-seed: 1
-entities:
-  # Define your entities here
-  # Example:
-  # users:
-  #   stream:
-  #     type: object
-  #     properties:
-  #       id:
-  #         type: integer
-  #       name:
-  #         type: string
-"#,
+seed: 1"#,
             dir_name
         );
 
         fs::write(&spec_path, spec_content).context("Failed to write spec.yml")?;
-        println!("Created .rngo/spec.yml with key: {}", dir_name);
     }
 
     // Ensure .gitignore has .rngo/simulations
     ensure_gitignore_entry(&current_dir)?;
 
-    println!("Project initialized successfully!");
+    println!("Successfully initialized for rngo!");
+    println!("For next steps, see https://rngo.dev/docs/guides/application-setup");
     Ok(())
 }
 
@@ -58,7 +45,6 @@ fn ensure_gitignore_entry(project_dir: &Path) -> Result<()> {
         let content = fs::read_to_string(&gitignore_path).context("Failed to read .gitignore")?;
 
         if content.lines().any(|line| line.trim() == entry) {
-            println!(".gitignore already contains .rngo/simulations");
             return Ok(());
         }
 
@@ -70,12 +56,10 @@ fn ensure_gitignore_entry(project_dir: &Path) -> Result<()> {
         };
 
         fs::write(&gitignore_path, new_content).context("Failed to update .gitignore")?;
-        println!("Added .rngo/simulations to .gitignore");
     } else {
         // Create new .gitignore
         fs::write(&gitignore_path, format!("{}\n", entry))
             .context("Failed to create .gitignore")?;
-        println!("Created .gitignore with .rngo/simulations");
     }
 
     Ok(())
