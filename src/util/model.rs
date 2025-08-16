@@ -52,6 +52,7 @@ pub struct Entity {
 #[derive(Clone, Debug, Deserialize)]
 pub struct Spec {
     pub entities: HashMap<String, Entity>,
+    #[serde(default)]
     pub systems: HashMap<String, System>,
 }
 

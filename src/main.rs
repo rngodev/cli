@@ -30,11 +30,12 @@ enum Commands {
     },
     /// Creates a simulation and downloads the data.
     Sim {
-        /// Path to the simulation spec file.
-        spec_path: Option<String>,
+        /// The spec file to use for the simulation
+        #[arg(short, long)]
+        spec: Option<String>,
 
         /// Stream the simulation data to stdout
-        #[arg(short, long)]
+        #[arg(long)]
         stream: bool,
     },
 }
@@ -53,6 +54,6 @@ async fn main() -> Result<()> {
         Commands::Login {} => login::login().await,
         Commands::Logout {} => logout::logout().await,
         Commands::Infer { .. } => infer::infer().await,
-        Commands::Sim { spec_path, stream } => sim::sim(spec_path, stream).await,
+        Commands::Sim { spec, stream } => sim::sim(spec, stream).await,
     }
 }
