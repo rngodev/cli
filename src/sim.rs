@@ -34,9 +34,9 @@ pub enum EventData {
     },
 }
 
-pub async fn sim(spec_path: Option<String>, stream: bool) -> Result<()> {
-    let spec = if let Some(spec_path) = spec_path {
-        crate::util::spec::load_spec_from_file(spec_path)?
+pub async fn sim(spec: Option<String>, stream: bool) -> Result<()> {
+    let spec = if let Some(spec) = spec {
+        crate::util::spec::load_spec_from_file(spec)?
     } else {
         crate::util::spec::load_spec_from_project_directory()?
     };
