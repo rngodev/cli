@@ -36,7 +36,7 @@ enum Commands {
 
         /// Stream the simulation data to stdout
         #[arg(long)]
-        stream: bool,
+        stdout: bool,
     },
 }
 
@@ -54,6 +54,6 @@ async fn main() -> Result<()> {
         Commands::Login {} => login::login().await,
         Commands::Logout {} => logout::logout().await,
         Commands::Infer { .. } => infer::infer().await,
-        Commands::Sim { spec, stream } => sim::sim(spec, stream).await,
+        Commands::Sim { spec, stdout } => sim::sim(spec, stdout).await,
     }
 }

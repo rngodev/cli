@@ -34,7 +34,7 @@ pub enum EventData {
     },
 }
 
-pub async fn sim(spec: Option<String>, stream: bool) -> Result<()> {
+pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
     let spec = if let Some(spec) = spec {
         crate::util::spec::load_spec_from_file(spec)?
     } else {
@@ -70,7 +70,7 @@ pub async fn sim(spec: Option<String>, stream: bool) -> Result<()> {
     let simulation_directory = format!(".rngo/simulations/{}", simulation_id);
     let simulation_directory = Path::new(&simulation_directory);
 
-    if !stream {
+    if !stdout {
         fs::create_dir_all(simulation_directory)?;
     }
 
@@ -84,7 +84,7 @@ pub async fn sim(spec: Option<String>, stream: bool) -> Result<()> {
 
     let mut sse_stream = sse_client.stream();
 
-    let mut simulation_sink = if stream {
+    let mut simulation_sink = if stdout {
         SimulationSink::stream()
     } else {
         SimulationSink::try_from(simulation.clone())?
@@ -101,7 +101,7 @@ pub async fn sim(spec: Option<String>, stream: bool) -> Result<()> {
         }
     }
 
-    if !stream {
+    if !stdout {
         let response = client
             .get(format!(
                 "{api_url}/simulations/{id}",
