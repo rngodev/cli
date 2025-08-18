@@ -10,7 +10,10 @@ use clap::{Parser, Subcommand};
 
 #[derive(Debug, Parser)]
 #[command(name = "rngo")]
-#[command(about = "Data simulation CLI", long_about = None)]
+#[command(
+    about = "Data simulation CLI. See https://rngo.dev/docs/cli.",
+    long_about = None
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -18,17 +21,18 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
-    /// Initialize a new rngo project in the current directory.
+    /// Initialize rngo in the current application.
     Init {},
-    /// Log into the rngo API.
+    /// Save an API key for API authentication.
     Login {},
-    /// Log out of the rngo API.
+    /// Delete the API key saved for API authentication.
     Logout {},
+    /// Infer rngo entities using an LLM - see `rngo infer prompt`.
     Infer {
         #[command(subcommand)]
         command: InferCommands,
     },
-    /// Creates a simulation and downloads the data.
+    /// Create a simulation and download the data.
     Sim {
         /// The spec file to use for the simulation
         #[arg(short, long)]
@@ -36,12 +40,13 @@ enum Commands {
 
         /// Stream the simulation data to stdout
         #[arg(long)]
-        stdout: bool,
+        stream: bool,
     },
 }
 
 #[derive(Debug, Subcommand)]
 enum InferCommands {
+    /// Output an LLM prompt to infer rngo entites from the current application.
     Prompt {},
 }
 
@@ -54,6 +59,6 @@ async fn main() -> Result<()> {
         Commands::Login {} => login::login().await,
         Commands::Logout {} => logout::logout().await,
         Commands::Infer { .. } => infer::infer().await,
-        Commands::Sim { spec, stdout } => sim::sim(spec, stdout).await,
+        Commands::Sim { spec, stream } => sim::sim(spec, stream).await,
     }
 }
