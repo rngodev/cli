@@ -52,8 +52,41 @@ pub fn load_spec_from_project_directory() -> Result<Value> {
 
     let systems_map = load_systems_from_project_directory()?;
 
-    let mut spec = Map::new();
-    spec.insert("seed".into(), 1.into());
+    // Try to load base spec from .rngo/spec.yml, fallback to default map
+    let rngo_spec_path = rngo_path.join("spec.yml");
+    let mut spec = if rngo_spec_path.exists() {
+        let spec_content = fs::read_to_string(&rngo_spec_path)?;
+        let yaml_value: serde_yaml::Value =
+            serde_yaml::from_str(&spec_content).with_context(|| {
+                format!(
+                    "Failed to parse spec file at {}",
+                    rngo_spec_path.to_string_lossy()
+                )
+            })?;
+        let json_value: serde_json::Value = serde_json::to_value(yaml_value)?;
+
+        if let serde_json::Value::Object(map) = json_value {
+            map
+        } else {
+            bail!(
+                "Spec file at {} must contain a YAML object",
+                rngo_spec_path.to_string_lossy()
+            );
+        }
+    } else {
+        let mut default_spec = Map::new();
+        default_spec.insert("seed".into(), 1.into());
+
+        // Set "key" to current directory name
+        if let Ok(current_dir) = std::env::current_dir() {
+            if let Some(dir_name) = current_dir.file_name().and_then(|s| s.to_str()) {
+                default_spec.insert("key".into(), dir_name.into());
+            }
+        }
+
+        default_spec
+    };
+
     if !systems_map.is_empty() {
         spec.insert("systems".into(), serde_json::Value::Object(systems_map));
     }
