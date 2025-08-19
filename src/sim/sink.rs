@@ -76,10 +76,15 @@ impl TryFrom<Simulation> for SimulationSink {
                         format!("Could not resolve system type {}", entity_system.stype)
                     })?;
 
-                let command_parts: Vec<&str> = system.import.command.split_whitespace().collect();
+                #[cfg(target_os = "windows")]
+                let (shell, flag) = ("cmd", "/C");
 
-                let mut child = Command::new(command_parts[0].to_string())
-                    .args(&command_parts[1..])
+                #[cfg(not(target_os = "windows"))]
+                let (shell, flag) = ("sh", "-c");
+
+                let mut child = Command::new(shell)
+                    .arg(flag)
+                    .arg(system.import.command.clone())
                     .stdin(Stdio::piped())
                     .stdout(Stdio::inherit())
                     .spawn()
