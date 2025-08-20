@@ -66,8 +66,7 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
 
     let simulation = response.json::<Simulation>().await?;
 
-    let simulation_id = &simulation.id;
-    let simulation_directory = format!(".rngo/simulations/{}", simulation_id);
+    let simulation_directory = format!(".rngo/simulations/{}", simulation.id);
     let simulation_directory = Path::new(&simulation_directory);
 
     if !stdout {
@@ -112,15 +111,18 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
             .send()
             .await?;
 
-        let simulation = response.json::<Value>().await?;
+        let simulation_response_json = response.json::<Value>().await?;
 
         let simulation_metadata_directory = simulation_directory.join("metadata");
         let spec_path = simulation_metadata_directory.join("simulation.json");
         fs::create_dir_all(simulation_metadata_directory)?;
-        fs::write(spec_path, serde_json::to_string_pretty(&simulation)?)?;
+        fs::write(
+            spec_path,
+            serde_json::to_string_pretty(&simulation_response_json)?,
+        )?;
 
         println!("Created and drained simulation");
-        println!("See https://rngo.dev/simulations/{}", simulation_id);
+        println!("See https://rngo.dev/simulations/{}", simulation.key);
     }
 
     Ok(())
