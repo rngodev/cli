@@ -86,7 +86,8 @@ impl TryFrom<Simulation> for SimulationSink {
                     .arg(flag)
                     .arg(system.import.command.clone())
                     .stdin(Stdio::piped())
-                    .stdout(Stdio::inherit())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::inherit())
                     .spawn()
                     .with_context(|| {
                         format!(
