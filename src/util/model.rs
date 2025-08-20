@@ -58,6 +58,7 @@ pub struct Spec {
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct Simulation {
+    pub key: String,
     pub id: String,
     #[serde(flatten)]
     pub spec: Spec,
