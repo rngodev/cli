@@ -74,7 +74,7 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
     }
 
     let sse_client = eventsource_client::ClientBuilder::for_url(&format!(
-        "{api_url}/simulations/{id}/stream",
+        "{api_url}/simulations/{id}/sse",
         api_url = config.api_url,
         id = simulation.id
     ))?
