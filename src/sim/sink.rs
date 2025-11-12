@@ -1,5 +1,5 @@
 use crate::sim::{EventData, Simulation};
-use crate::util::model::OutputType;
+use crate::util::model::FormatType;
 use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::fs::OpenOptions;
@@ -13,9 +13,10 @@ pub struct SimulationSink {
     stream: bool,
 }
 
+#[derive(Debug)]
 struct Entity {
     system_key: String,
-    output_type: OutputType,
+    format_type: FormatType,
 }
 
 impl SimulationSink {
@@ -41,8 +42,8 @@ impl SimulationSink {
         } else if let EventData::Create { entity, value, .. } = event_data {
             if let Some(entity) = self.entities.get(&entity) {
                 if let Some(system_sink) = self.system_sinks.get_mut(&entity.system_key) {
-                    let value = match entity.output_type {
-                        OutputType::Json => &value.to_string(),
+                    let value = match entity.format_type {
+                        FormatType::Json => &value.to_string(),
                         _ => value.as_str().unwrap(),
                     };
 
@@ -104,17 +105,17 @@ impl TryFrom<Simulation> for SimulationSink {
                     key.clone(),
                     Entity {
                         system_key: system_key.clone(),
-                        output_type: system.output.otype.clone(),
+                        format_type: system.format.otype.clone(),
                     },
                 );
 
                 simulation_sink
                     .system_sinks
                     .insert(system_key, Box::new(child_stdin));
-            } else if let Some(output) = &entity.output {
-                let (extension, system_type) = match output.otype {
-                    OutputType::Sql => ("sql", "sql"),
-                    OutputType::Json => ("jsonl", "json"),
+            } else if let Some(format) = &entity.format {
+                let (extension, system_type) = match format.otype {
+                    FormatType::Sql => ("sql", "sql"),
+                    FormatType::Json => ("jsonl", "json"),
                 };
 
                 let file_path = simulation_directory.join(format!("{}.{}", key, extension));
@@ -131,7 +132,7 @@ impl TryFrom<Simulation> for SimulationSink {
                     key.clone(),
                     Entity {
                         system_key: system_key.clone(),
-                        output_type: output.otype.clone(),
+                        format_type: format.otype.clone(),
                     },
                 );
 

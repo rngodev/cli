@@ -3,15 +3,15 @@ use std::collections::HashMap;
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub enum OutputType {
+pub enum FormatType {
     Sql,
     Json,
 }
 
 #[derive(Clone, Debug, Deserialize)]
-pub struct Output {
+pub struct Format {
     #[serde(rename = "type")]
-    pub otype: OutputType,
+    pub otype: FormatType,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -32,7 +32,7 @@ pub struct SystemInfer {
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct System {
-    pub output: Output,
+    pub format: Format,
     pub import: SystemImport,
     pub infer: Option<SystemInfer>,
 }
@@ -45,7 +45,7 @@ pub struct EntitySystem {
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct Entity {
-    pub output: Option<Output>,
+    pub format: Option<Format>,
     pub system: Option<EntitySystem>,
 }
 

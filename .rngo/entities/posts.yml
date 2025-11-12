@@ -1,6 +1,6 @@
 system:
   type: db1
-stream:
+schema:
   type: object
   properties:
     id:
