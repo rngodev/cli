@@ -125,3 +125,13 @@ pub fn load_systems_from_project_directory() -> Result<Map<String, Value>> {
 
     Ok(systems_map)
 }
+
+pub fn ensure_spec_output_is_stream(mut spec: Value) -> Value {
+    match spec {
+        Value::Object(ref mut map) => {
+            map.insert("output".into(), "stream".into());
+            spec
+        }
+        _ => spec,
+    }
+}

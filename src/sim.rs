@@ -40,6 +40,7 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
     } else {
         crate::util::spec::load_spec_from_project_directory()?
     };
+    let spec = crate::util::spec::ensure_spec_output_is_stream(spec);
 
     let config = crate::util::config::get_config()?;
     let api_key = config
@@ -74,11 +75,12 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
     }
 
     let sse_client = eventsource_client::ClientBuilder::for_url(&format!(
-        "{api_url}/simulations/{id}/sse",
+        "{api_url}/simulations/{id}/stream",
         api_url = config.api_url,
         id = simulation.id
     ))?
     .header("Authorization", &format!("Bearer {}", api_key))?
+    .header("Accept", "text/event-stream")?
     .build();
 
     let mut sse_stream = sse_client.stream();
@@ -102,24 +104,23 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
 
     if !stdout {
         let response = client
-            .get(format!(
-                "{api_url}/simulations/{id}",
-                api_url = config.api_url,
-                id = simulation.id
-            ))
+            .get(format!("{api_url}/simulations", api_url = config.api_url))
+            .query(&[("id", simulation.id.as_str())])
             .header("Authorization", format!("Bearer {}", api_key))
             .send()
             .await?;
 
         let simulation_response_json = response.json::<Value>().await?;
 
+        let simulation_json = simulation_response_json
+            .as_array()
+            .context("Expected array response from /simulations")?
+            .first();
+
         let simulation_metadata_directory = simulation_directory.join("metadata");
         let spec_path = simulation_metadata_directory.join("simulation.json");
         fs::create_dir_all(simulation_metadata_directory)?;
-        fs::write(
-            spec_path,
-            serde_json::to_string_pretty(&simulation_response_json)?,
-        )?;
+        fs::write(spec_path, serde_json::to_string_pretty(&simulation_json)?)?;
 
         println!("Created and drained simulation");
         println!("See https://rngo.dev/simulations/{}", simulation.key);
