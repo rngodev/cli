@@ -4,8 +4,7 @@ mod sink;
 use crate::sim::problem::Problem;
 use crate::util::model::Simulation;
 use anyhow::{Context, Result, anyhow};
-use eventsource_client::{Client, SSE};
-use futures::TryStreamExt;
+use futures::StreamExt;
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -14,20 +13,21 @@ use std::fs;
 use std::path::Path;
 
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(untagged)]
+#[serde(rename_all = "snake_case")]
+#[serde(tag = "type")]
 pub enum EventData {
     Create {
+        id: u64,
         entity: String,
         offset: i64,
         value: Value,
     },
     Error {
+        id: u64,
         #[serde(skip_serializing_if = "Option::is_none")]
         entity: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         offset: Option<i64>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        id: Option<Value>,
         #[serde(skip_serializing_if = "Option::is_none")]
         path: Option<Vec<String>>,
         message: String,
@@ -74,32 +74,70 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
         fs::create_dir_all(simulation_directory)?;
     }
 
-    let sse_client = eventsource_client::ClientBuilder::for_url(&format!(
-        "{api_url}/simulations/{id}/stream",
-        api_url = config.api_url,
-        id = simulation.id
-    ))?
-    .header("Authorization", &format!("Bearer {}", api_key))?
-    .header("Accept", "text/event-stream")?
-    .build();
-
-    let mut sse_stream = sse_client.stream();
-
     let mut simulation_sink = if stdout {
         SimulationSink::stream()
     } else {
         SimulationSink::try_from(simulation.clone())?
     };
 
-    while let Ok(Some(sse)) = sse_stream.try_next().await {
-        match sse {
-            SSE::Event(event) => match serde_json::from_str::<EventData>(&event.data) {
-                Ok(event_data) => simulation_sink.write_event(event_data),
-                Err(_) => eprintln!("Failed to parse SSE data: {}", event.data),
-            },
-            SSE::Connected(_) => (),
-            SSE::Comment(_) => (),
+    let stream_url = format!(
+        "{api_url}/simulations/{id}/stream",
+        api_url = config.api_url,
+        id = simulation.id
+    );
+
+    // Loop to handle reconnection
+    loop {
+        let response = client
+            .get(&stream_url)
+            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Accept", "application/x-ndjson")
+            .send()
+            .await?;
+
+        let status = response.status();
+
+        // If we get 204 No Content, the simulation is complete
+        if status == StatusCode::NO_CONTENT {
+            break;
         }
+
+        if !status.is_success() {
+            let problem = response.json::<Problem>().await?;
+            return Err(problem).with_context(|| "API error while streaming")?;
+        }
+
+        // Process the NDJSON stream
+        let mut byte_stream = response.bytes_stream();
+        let mut buffer = String::new();
+
+        while let Some(chunk_result) = byte_stream.next().await {
+            let chunk = match chunk_result {
+                Ok(bytes) => bytes,
+                Err(e) => {
+                    eprintln!("Stream error: {}, reconnecting...", e);
+                    break; // Break inner loop to reconnect
+                }
+            };
+
+            let chunk_str = String::from_utf8_lossy(&chunk);
+            buffer.push_str(&chunk_str);
+
+            // Process complete lines
+            while let Some(newline_pos) = buffer.find('\n') {
+                let line = buffer[..newline_pos].trim().to_string();
+                buffer = buffer[newline_pos + 1..].to_string();
+
+                if !line.is_empty() {
+                    match serde_json::from_str::<EventData>(&line) {
+                        Ok(event_data) => simulation_sink.write_event(event_data),
+                        Err(e) => eprintln!("Failed to parse NDJSON line: {} - Error: {}", line, e),
+                    }
+                }
+            }
+        }
+
+        // If we reach here, the connection ended without 204, so reconnect
     }
 
     if !stdout {
