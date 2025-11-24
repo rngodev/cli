@@ -86,14 +86,22 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
         id = simulation.id
     );
 
+    // Track the last event ID for seamless reconnection
+    let mut last_event_id: Option<u64> = None;
+
     // Loop to handle reconnection
     loop {
-        let response = client
+        let mut request = client
             .get(&stream_url)
             .header("Authorization", format!("Bearer {}", api_key))
-            .header("Accept", "application/x-ndjson")
-            .send()
-            .await?;
+            .header("Accept", "application/x-ndjson");
+
+        // Add lastEventId query parameter if we have one
+        if let Some(event_id) = last_event_id {
+            request = request.query(&[("lastEventId", event_id.to_string())]);
+        }
+
+        let response = request.send().await?;
 
         let status = response.status();
 
@@ -130,7 +138,14 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
 
                 if !line.is_empty() {
                     match serde_json::from_str::<EventData>(&line) {
-                        Ok(event_data) => simulation_sink.write_event(event_data),
+                        Ok(event_data) => {
+                            // Track the last event ID for reconnection
+                            last_event_id = Some(match &event_data {
+                                EventData::Create { id, .. } => *id,
+                                EventData::Error { id, .. } => *id,
+                            });
+                            simulation_sink.write_event(event_data);
+                        }
                         Err(e) => eprintln!("Failed to parse NDJSON line: {} - Error: {}", line, e),
                     }
                 }
