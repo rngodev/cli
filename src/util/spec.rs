@@ -135,3 +135,16 @@ pub fn ensure_spec_output_is_stream(mut spec: Value) -> Value {
         _ => spec,
     }
 }
+
+pub fn get_spec_key(spec: &mut Value) -> Option<String> {
+    match spec {
+        Value::Object(map) => {
+            if let Some(key) = map.remove("key") {
+                key.as_str().map(|s| s.to_string())
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}

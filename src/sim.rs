@@ -2,12 +2,12 @@ mod problem;
 mod sink;
 
 use crate::sim::problem::Problem;
-use crate::util::model::Simulation;
+use crate::util::model::{Entity, Simulation, SimulationRun, SimulationRunData, System};
 use anyhow::{Context, Result, anyhow};
 use futures::StreamExt;
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, json};
 use sink::SimulationSink;
 use std::fs;
 use std::path::Path;
@@ -35,55 +35,128 @@ pub enum EventData {
 }
 
 pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
-    let spec = if let Some(spec) = spec {
-        crate::util::spec::load_spec_from_file(spec)?
-    } else {
-        crate::util::spec::load_spec_from_project_directory()?
-    };
-    let spec = crate::util::spec::ensure_spec_output_is_stream(spec);
-
     let config = crate::util::config::get_config()?;
     let api_key = config
         .api_key
         .ok_or_else(|| anyhow!("Could not find API key"))?;
 
     let client = reqwest::Client::new();
-    let response = client
-        .post(format!("{api_url}/simulations", api_url = config.api_url))
-        .header("Authorization", format!("Bearer {}", api_key))
-        .json(&spec)
-        .send()
-        .await?;
 
-    if response.status() != StatusCode::CREATED {
-        let status = response.status().clone();
-        let problem = response.json::<Problem>().await?;
+    let (key, spec) = {
+        let spec = if let Some(spec) = spec {
+            crate::util::spec::load_spec_from_file(spec)?
+        } else {
+            crate::util::spec::load_spec_from_project_directory()?
+        };
 
-        return Err(problem).with_context(|| match status {
-            StatusCode::UNPROCESSABLE_ENTITY => "Validation error",
-            _ => "API error",
-        })?;
-    }
+        let mut spec = crate::util::spec::ensure_spec_output_is_stream(spec);
+        let key = crate::util::spec::get_spec_key(&mut spec);
+        (key, spec)
+    };
 
-    let simulation = response.json::<Simulation>().await?;
+    let simulation = {
+        let push_simulation_response = match key {
+            Some(key) => {
+                client
+                    .put(format!(
+                        "{api_url}/simulations/{key}",
+                        api_url = config.api_url,
+                        key = key
+                    ))
+                    .header("Authorization", format!("Bearer {}", api_key))
+                    .json(&spec)
+                    .send()
+                    .await?
+            }
+            None => {
+                client
+                    .post(format!("{api_url}/simulations", api_url = config.api_url))
+                    .header("Authorization", format!("Bearer {}", api_key))
+                    .json(&spec)
+                    .send()
+                    .await?
+            }
+        };
 
-    let simulation_directory = format!(".rngo/simulations/{}", simulation.id);
-    let simulation_directory = Path::new(&simulation_directory);
+        if !push_simulation_response.status().is_success() {
+            let status = push_simulation_response.status().clone();
+            let problem = push_simulation_response.json::<Problem>().await?;
+
+            return Err(problem).with_context(|| match status {
+                StatusCode::UNPROCESSABLE_ENTITY => "Validation error",
+                _ => "API error",
+            })?;
+        }
+
+        push_simulation_response.json::<Simulation>().await?
+    };
+
+    let simulation_run = {
+        let response = client
+            .post(format!(
+                "{api_url}/simulationRuns",
+                api_url = config.api_url
+            ))
+            .header("Authorization", format!("Bearer {}", api_key))
+            .json(&json!({
+                "simulation": simulation.key,
+                "output": "stream",
+            }))
+            .send()
+            .await?;
+
+        response.json::<SimulationRun>().await?
+    };
+
+    let simulation_run_directory = format!(".rngo/runs/{}", simulation_run.id);
+    let simulation_run_directory = Path::new(&simulation_run_directory);
 
     if !stdout {
-        fs::create_dir_all(simulation_directory)?;
+        fs::create_dir_all(simulation_run_directory)?;
     }
+
+    let simulation_run_data = {
+        let entities_response = client
+            .get(format!(
+                "{api_url}/simulationRuns/{id}/entities",
+                api_url = config.api_url,
+                id = simulation_run.id
+            ))
+            .header("Authorization", format!("Bearer {}", api_key))
+            .send()
+            .await?;
+
+        let entities = entities_response.json::<Vec<Entity>>().await?;
+
+        let systems_response = client
+            .get(format!(
+                "{api_url}/simulationRuns/{id}/systems",
+                api_url = config.api_url,
+                id = simulation_run.id
+            ))
+            .header("Authorization", format!("Bearer {}", api_key))
+            .send()
+            .await?;
+
+        let systems = systems_response.json::<Vec<System>>().await?;
+
+        SimulationRunData {
+            id: simulation_run.id.clone(),
+            entities,
+            systems,
+        }
+    };
 
     let mut simulation_sink = if stdout {
         SimulationSink::stream()
     } else {
-        SimulationSink::try_from(simulation.clone())?
+        SimulationSink::try_from(simulation_run_data.clone())?
     };
 
     let stream_url = format!(
-        "{api_url}/simulations/{id}/stream",
+        "{api_url}/simulationRuns/{id}/stream",
         api_url = config.api_url,
-        id = simulation.id
+        id = simulation_run.id
     );
 
     // Track the last event ID for seamless reconnection
@@ -156,27 +229,48 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
     }
 
     if !stdout {
-        let response = client
-            .get(format!("{api_url}/simulations", api_url = config.api_url))
-            .query(&[("id", simulation.id.as_str())])
-            .header("Authorization", format!("Bearer {}", api_key))
-            .send()
-            .await?;
+        let entities_map: serde_json::Map<String, Value> = simulation_run_data
+            .entities
+            .into_iter()
+            .map(|entity| {
+                let key = entity.key.clone();
+                let mut value = serde_json::to_value(entity).unwrap();
+                if let Some(obj) = value.as_object_mut() {
+                    obj.remove("key");
+                }
+                (key, value)
+            })
+            .collect();
 
-        let simulation_response_json = response.json::<Value>().await?;
+        let systems_map: serde_json::Map<String, Value> = simulation_run_data
+            .systems
+            .into_iter()
+            .map(|system| {
+                let key = system.key.clone();
+                let mut value = serde_json::to_value(system).unwrap();
+                if let Some(obj) = value.as_object_mut() {
+                    obj.remove("key");
+                }
+                (key, value)
+            })
+            .collect();
 
-        let simulation_json = simulation_response_json
-            .as_array()
-            .context("Expected array response from /simulations")?
-            .first();
+        let mut spec = serde_json::Map::new();
+        spec.insert("seed".to_string(), json!(simulation.seed));
+        spec.insert("parent".to_string(), json!(simulation.parent));
+        spec.insert("entities".to_string(), json!(entities_map));
+        spec.insert("systems".to_string(), json!(systems_map));
 
-        let simulation_metadata_directory = simulation_directory.join("metadata");
-        let spec_path = simulation_metadata_directory.join("simulation.json");
-        fs::create_dir_all(simulation_metadata_directory)?;
-        fs::write(spec_path, serde_json::to_string_pretty(&simulation_json)?)?;
+        let spec_path = simulation_run_directory.join("spec.yml");
+        fs::write(spec_path, serde_json::to_string_pretty(&spec)?)?;
 
-        println!("Created and drained simulation");
-        println!("See https://rngo.dev/simulations/{}", simulation.key);
+        println!("Created and ran simulation");
+        println!("  fs:  .rngo/runs/{}", simulation_run.id);
+        println!("  sim: https://rngo.dev/simulations/{}", simulation.key);
+        println!(
+            "  run: https://rngo.dev/simulationRuns/{}",
+            simulation_run.id
+        );
     }
 
     Ok(())
