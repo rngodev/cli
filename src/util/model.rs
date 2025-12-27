@@ -1,5 +1,4 @@
 use serde::Deserialize;
-use std::collections::HashMap;
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -32,6 +31,7 @@ pub struct SystemInfer {
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct System {
+    pub key: String,
     pub format: Format,
     pub import: SystemImport,
     pub infer: Option<SystemInfer>,
@@ -45,21 +45,27 @@ pub struct EntitySystem {
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct Entity {
+    pub key: String,
     pub format: Option<Format>,
     pub system: Option<EntitySystem>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
-pub struct Spec {
-    pub entities: HashMap<String, Entity>,
-    #[serde(default)]
-    pub systems: HashMap<String, System>,
+pub struct Simulation {
+    pub key: String,
+    pub parent: String,
+    pub seed: u64,
 }
 
 #[derive(Clone, Debug, Deserialize)]
-pub struct Simulation {
-    pub key: String,
+pub struct SimulationRun {
     pub id: String,
-    #[serde(flatten)]
-    pub spec: Spec,
+    pub simulation: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct SimulationRunData {
+    pub id: String,
+    pub entities: Vec<Entity>,
+    pub systems: Vec<System>,
 }

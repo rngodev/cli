@@ -1,5 +1,5 @@
-use crate::sim::{EventData, Simulation};
-use crate::util::model::FormatType;
+use crate::sim::EventData;
+use crate::util::model::{FormatType, SimulationRunData};
 use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::fs::OpenOptions;
@@ -54,25 +54,25 @@ impl SimulationSink {
     }
 }
 
-impl TryFrom<Simulation> for SimulationSink {
+impl TryFrom<SimulationRunData> for SimulationSink {
     type Error = anyhow::Error;
 
-    fn try_from(simulation: Simulation) -> Result<Self> {
+    fn try_from(simulation_run_data: SimulationRunData) -> Result<Self> {
         let mut simulation_sink = SimulationSink {
             system_sinks: HashMap::new(),
             entities: HashMap::new(),
             stream: false,
         };
 
-        let simulation_directory = format!(".rngo/simulations/{}", simulation.id);
+        let simulation_directory = format!(".rngo/runs/{}", simulation_run_data.id);
         let simulation_directory = Path::new(&simulation_directory);
 
-        for (key, entity) in simulation.spec.entities.iter() {
+        for entity in simulation_run_data.entities.iter() {
             if let Some(entity_system) = &entity.system {
-                let system = simulation
-                    .spec
+                let system = simulation_run_data
                     .systems
-                    .get(&entity_system.stype)
+                    .iter()
+                    .find(|s| s.key == entity_system.stype)
                     .with_context(|| {
                         format!("Could not resolve system type {}", entity_system.stype)
                     })?;
@@ -102,7 +102,7 @@ impl TryFrom<Simulation> for SimulationSink {
                 let system_key = entity_system.stype.clone();
 
                 simulation_sink.entities.insert(
-                    key.clone(),
+                    entity.key.clone(),
                     Entity {
                         system_key: system_key.clone(),
                         format_type: system.format.otype.clone(),
@@ -118,7 +118,7 @@ impl TryFrom<Simulation> for SimulationSink {
                     FormatType::Json => ("jsonl", "json"),
                 };
 
-                let file_path = simulation_directory.join(format!("{}.{}", key, extension));
+                let file_path = simulation_directory.join(format!("{}.{}", entity.key, extension));
 
                 let file = OpenOptions::new()
                     .create(true)
@@ -126,10 +126,10 @@ impl TryFrom<Simulation> for SimulationSink {
                     .open(file_path.clone())
                     .expect(&format!("Failed to open file at {}", file_path.display()));
 
-                let system_key = format!("{}_{}", system_type, key);
+                let system_key = format!("{}_{}", system_type, entity.key);
 
                 simulation_sink.entities.insert(
-                    key.clone(),
+                    entity.key.clone(),
                     Entity {
                         system_key: system_key.clone(),
                         format_type: format.otype.clone(),
