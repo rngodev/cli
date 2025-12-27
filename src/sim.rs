@@ -35,14 +35,6 @@ pub enum EventData {
 }
 
 pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
-    let spec = if let Some(spec) = spec {
-        crate::util::spec::load_spec_from_file(spec)?
-    } else {
-        crate::util::spec::load_spec_from_project_directory()?
-    };
-    let mut spec = crate::util::spec::ensure_spec_output_is_stream(spec);
-    let key = crate::util::spec::get_spec_key(&mut spec);
-
     let config = crate::util::config::get_config()?;
     let api_key = config
         .api_key
@@ -50,96 +42,110 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
 
     let client = reqwest::Client::new();
 
-    let response = match key {
-        Some(key) => {
-            client
-                .put(format!(
-                    "{api_url}/simulations/{key}",
-                    api_url = config.api_url,
-                    key = key
-                ))
-                .header("Authorization", format!("Bearer {}", api_key))
-                .json(&spec)
-                .send()
-                .await?
-        }
-        None => {
-            client
-                .post(format!("{api_url}/simulations", api_url = config.api_url))
-                .header("Authorization", format!("Bearer {}", api_key))
-                .json(&spec)
-                .send()
-                .await?
-        }
+    let (key, spec) = {
+        let spec = if let Some(spec) = spec {
+            crate::util::spec::load_spec_from_file(spec)?
+        } else {
+            crate::util::spec::load_spec_from_project_directory()?
+        };
+
+        let mut spec = crate::util::spec::ensure_spec_output_is_stream(spec);
+        let key = crate::util::spec::get_spec_key(&mut spec);
+        (key, spec)
     };
 
-    if !response.status().is_success() {
-        let status = response.status().clone();
-        let problem = response.json::<Problem>().await?;
+    let simulation = {
+        let push_simulation_response = match key {
+            Some(key) => {
+                client
+                    .put(format!(
+                        "{api_url}/simulations/{key}",
+                        api_url = config.api_url,
+                        key = key
+                    ))
+                    .header("Authorization", format!("Bearer {}", api_key))
+                    .json(&spec)
+                    .send()
+                    .await?
+            }
+            None => {
+                client
+                    .post(format!("{api_url}/simulations", api_url = config.api_url))
+                    .header("Authorization", format!("Bearer {}", api_key))
+                    .json(&spec)
+                    .send()
+                    .await?
+            }
+        };
 
-        return Err(problem).with_context(|| match status {
-            StatusCode::UNPROCESSABLE_ENTITY => "Validation error",
-            _ => "API error",
-        })?;
-    }
+        if !push_simulation_response.status().is_success() {
+            let status = push_simulation_response.status().clone();
+            let problem = push_simulation_response.json::<Problem>().await?;
 
-    let simulation = response.json::<Simulation>().await?;
+            return Err(problem).with_context(|| match status {
+                StatusCode::UNPROCESSABLE_ENTITY => "Validation error",
+                _ => "API error",
+            })?;
+        }
 
-    let simulation_run_response = client
-        .post(format!(
-            "{api_url}/simulationRuns",
-            api_url = config.api_url
-        ))
-        .header("Authorization", format!("Bearer {}", api_key))
-        .json(&json!({
-            "simulation": simulation.key,
-            "output": "stream",
-        }))
-        .send()
-        .await?;
+        push_simulation_response.json::<Simulation>().await?
+    };
 
-    let simulation_run = simulation_run_response.json::<SimulationRun>().await?;
+    let simulation_run = {
+        let response = client
+            .post(format!(
+                "{api_url}/simulationRuns",
+                api_url = config.api_url
+            ))
+            .header("Authorization", format!("Bearer {}", api_key))
+            .json(&json!({
+                "simulation": simulation.key,
+                "output": "stream",
+            }))
+            .send()
+            .await?;
+
+        response.json::<SimulationRun>().await?
+    };
 
     let simulation_run_directory = format!(".rngo/runs/{}", simulation_run.id);
     let simulation_run_directory = Path::new(&simulation_run_directory);
 
-    let simulation_run_entities_response = client
-        .get(format!(
-            "{api_url}/simulationRuns/{id}/entities",
-            api_url = config.api_url,
-            id = simulation_run.id
-        ))
-        .header("Authorization", format!("Bearer {}", api_key))
-        .send()
-        .await?;
-
-    let simulation_run_entities = simulation_run_entities_response
-        .json::<Vec<Entity>>()
-        .await?;
-
-    let simulation_run_systems_response = client
-        .get(format!(
-            "{api_url}/simulationRuns/{id}/systems",
-            api_url = config.api_url,
-            id = simulation_run.id
-        ))
-        .header("Authorization", format!("Bearer {}", api_key))
-        .send()
-        .await?;
-
-    let simulation_run_systems = simulation_run_systems_response
-        .json::<Vec<System>>()
-        .await?;
-
-    let simulation_run_data = SimulationRunData {
-        id: simulation_run.id.clone(),
-        entities: simulation_run_entities,
-        systems: simulation_run_systems,
-    };
-
     if !stdout {
         fs::create_dir_all(simulation_run_directory)?;
     }
+
+    let simulation_run_data = {
+        let entities_response = client
+            .get(format!(
+                "{api_url}/simulationRuns/{id}/entities",
+                api_url = config.api_url,
+                id = simulation_run.id
+            ))
+            .header("Authorization", format!("Bearer {}", api_key))
+            .send()
+            .await?;
+
+        let entities = entities_response.json::<Vec<Entity>>().await?;
+
+        let systems_response = client
+            .get(format!(
+                "{api_url}/simulationRuns/{id}/systems",
+                api_url = config.api_url,
+                id = simulation_run.id
+            ))
+            .header("Authorization", format!("Bearer {}", api_key))
+            .send()
+            .await?;
+
+        let systems = systems_response.json::<Vec<System>>().await?;
+
+        SimulationRunData {
+            id: simulation_run.id.clone(),
+            entities,
+            systems,
+        }
+    };
 
     let mut simulation_sink = if stdout {
         SimulationSink::stream()
