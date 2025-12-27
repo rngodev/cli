@@ -150,7 +150,7 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
     let mut simulation_sink = if stdout {
         SimulationSink::stream()
     } else {
-        SimulationSink::try_from(simulation_run_data)?
+        SimulationSink::try_from(simulation_run_data.clone())?
     };
 
     let stream_url = format!(
@@ -229,30 +229,48 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
     }
 
     if !stdout {
-        let get_simulation_run_response = client
-            .get(format!(
-                "{api_url}/simulationRuns",
-                api_url = config.api_url
-            ))
-            .query(&[("id", simulation_run.id.as_str())])
-            .header("Authorization", format!("Bearer {}", api_key))
-            .send()
-            .await?;
+        let entities_map: serde_json::Map<String, Value> = simulation_run_data
+            .entities
+            .into_iter()
+            .map(|entity| {
+                let key = entity.key.clone();
+                let mut value = serde_json::to_value(entity).unwrap();
+                if let Some(obj) = value.as_object_mut() {
+                    obj.remove("key");
+                }
+                (key, value)
+            })
+            .collect();
 
-        let simulation_run_json = get_simulation_run_response.json::<Value>().await?;
+        let systems_map: serde_json::Map<String, Value> = simulation_run_data
+            .systems
+            .into_iter()
+            .map(|system| {
+                let key = system.key.clone();
+                let mut value = serde_json::to_value(system).unwrap();
+                if let Some(obj) = value.as_object_mut() {
+                    obj.remove("key");
+                }
+                (key, value)
+            })
+            .collect();
 
-        let simulation_json = simulation_run_json
-            .as_array()
-            .context("Expected array response from /simulationRuns")?
-            .first();
+        let mut spec = serde_json::Map::new();
+        spec.insert("seed".to_string(), json!(simulation.seed));
+        spec.insert("parent".to_string(), json!(simulation.parent));
+        spec.insert("entities".to_string(), json!(entities_map));
+        spec.insert("systems".to_string(), json!(systems_map));
 
-        let simulation_metadata_directory = simulation_run_directory.join("metadata");
-        let spec_path = simulation_metadata_directory.join("simulation.json");
-        fs::create_dir_all(simulation_metadata_directory)?;
-        fs::write(spec_path, serde_json::to_string_pretty(&simulation_json)?)?;
+        let spec_path = simulation_run_directory.join("spec.yml");
+        fs::write(spec_path, serde_json::to_string_pretty(&spec)?)?;
 
         println!("Created and ran simulation");
-        println!("See https://rngo.dev/simulationRuns/{}", simulation_run.id);
+        println!("  fs:  .rngo/runs/{}", simulation_run.id);
+        println!("  sim: https://rngo.dev/simulations/{}", simulation.key);
+        println!(
+            "  run: https://rngo.dev/simulationRuns/{}",
+            simulation_run.id
+        );
     }
 
     Ok(())
