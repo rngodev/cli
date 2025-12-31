@@ -64,7 +64,7 @@ impl TryFrom<SimulationRunData> for SimulationSink {
             stream: false,
         };
 
-        let simulation_directory = format!(".rngo/runs/{}", simulation_run_data.id);
+        let simulation_directory = format!(".rngo/runs/{}", simulation_run_data.index);
         let simulation_directory = Path::new(&simulation_directory);
 
         for entity in simulation_run_data.entities.iter() {
