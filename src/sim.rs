@@ -94,8 +94,9 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
     let simulation_run = {
         let response = client
             .post(format!(
-                "{api_url}/simulationRuns",
-                api_url = config.api_url
+                "{api_url}/simulations/{simulation_key}/runs",
+                api_url = config.api_url,
+                simulation_key = simulation.key
             ))
             .header("Authorization", format!("Bearer {}", api_key))
             .json(&json!({
@@ -108,7 +109,7 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
         response.json::<SimulationRun>().await?
     };
 
-    let simulation_run_directory = format!(".rngo/runs/{}", simulation_run.id);
+    let simulation_run_directory = format!(".rngo/runs/{}", simulation_run.index);
     let simulation_run_directory = Path::new(&simulation_run_directory);
 
     if !stdout {
@@ -118,9 +119,10 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
     let simulation_run_data = {
         let entities_response = client
             .get(format!(
-                "{api_url}/simulationRuns/{id}/entities",
+                "{api_url}/simulations/{simulation_key}/runs/{run_index}/entities",
                 api_url = config.api_url,
-                id = simulation_run.id
+                simulation_key = simulation_run.simulation,
+                run_index = simulation_run.index
             ))
             .header("Authorization", format!("Bearer {}", api_key))
             .send()
@@ -130,9 +132,10 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
 
         let systems_response = client
             .get(format!(
-                "{api_url}/simulationRuns/{id}/systems",
+                "{api_url}/simulations/{simulation_key}/runs/{run_index}/systems",
                 api_url = config.api_url,
-                id = simulation_run.id
+                simulation_key = simulation_run.simulation,
+                run_index = simulation_run.index
             ))
             .header("Authorization", format!("Bearer {}", api_key))
             .send()
@@ -141,7 +144,8 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
         let systems = systems_response.json::<Vec<System>>().await?;
 
         SimulationRunData {
-            id: simulation_run.id.clone(),
+            simulation: simulation_run.simulation.clone(),
+            index: simulation_run.index.clone(),
             entities,
             systems,
         }
@@ -154,9 +158,10 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
     };
 
     let stream_url = format!(
-        "{api_url}/simulationRuns/{id}/stream",
+        "{api_url}/simulations/{simulation_key}/runs/{run_index}/stream",
         api_url = config.api_url,
-        id = simulation_run.id
+        simulation_key = simulation_run.simulation,
+        run_index = simulation_run.index
     );
 
     // Track the last event ID for seamless reconnection
@@ -265,11 +270,11 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
         fs::write(spec_path, serde_json::to_string_pretty(&spec)?)?;
 
         println!("Created and ran simulation");
-        println!("  fs:  .rngo/runs/{}", simulation_run.id);
+        println!("  fs:  .rngo/runs/{}", simulation_run.index);
         println!("  sim: https://rngo.dev/simulations/{}", simulation.key);
         println!(
-            "  run: https://rngo.dev/simulationRuns/{}",
-            simulation_run.id
+            "  run: https://rngo.dev/simulations/{}/runs/{}",
+            simulation.key, simulation_run.index
         );
     }
 

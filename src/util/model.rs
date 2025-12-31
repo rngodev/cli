@@ -59,13 +59,14 @@ pub struct Simulation {
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct SimulationRun {
-    pub id: String,
     pub simulation: String,
+    pub index: u64,
 }
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct SimulationRunData {
-    pub id: String,
+    pub simulation: String,
+    pub index: u64,
     pub entities: Vec<Entity>,
     pub systems: Vec<System>,
 }
