@@ -80,7 +80,7 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
         };
 
         if !push_simulation_response.status().is_success() {
-            let status = push_simulation_response.status().clone();
+            let status = push_simulation_response.status();
             let problem = push_simulation_response.json::<Problem>().await?;
 
             return Err(problem).with_context(|| match status {

@@ -35,28 +35,22 @@ pub async fn infer() -> Result<()> {
         if let Some(context_parts) = context_parts {
             let mut system_prompt = format!("### System {key}");
 
-            match context_parts {
-                (Some(description), _) => {
-                    system_prompt.push_str(&format!("\n\n{description}"));
-                }
-                _ => (),
+            if let (Some(description), _) = context_parts {
+                system_prompt.push_str(&format!("\n\n{description}"));
             }
 
-            match context_parts {
-                (_, Some(command)) => {
-                    #[cfg(target_os = "windows")]
-                    let (shell, flag) = ("cmd", "/C");
+            if let (_, Some(command)) = context_parts {
+                #[cfg(target_os = "windows")]
+                let (shell, flag) = ("cmd", "/C");
 
-                    #[cfg(not(target_os = "windows"))]
-                    let (shell, flag) = ("sh", "-c");
+                #[cfg(not(target_os = "windows"))]
+                let (shell, flag) = ("sh", "-c");
 
-                    let output = Command::new(shell).arg(flag).arg(command).output()?;
-                    if output.status.success() {
-                        let output = String::from_utf8_lossy(&output.stdout);
-                        system_prompt.push_str(&format!("\n\n```\n{output}\n```"))
-                    }
+                let output = Command::new(shell).arg(flag).arg(command).output()?;
+                if output.status.success() {
+                    let output = String::from_utf8_lossy(&output.stdout);
+                    system_prompt.push_str(&format!("\n\n```\n{output}\n```"))
                 }
-                _ => (),
             }
 
             system_prompts.push(system_prompt)

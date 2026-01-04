@@ -8,7 +8,7 @@ jobs:
       - name: Display environment info
         run: rustup --version && rustup show
       - name: Run clippy
-        run: cargo clippy --all-targets --all-features
+        run: cargo clippy --all-targets --all-features -- -D warnings
   test:
     runs-on: ubuntu-latest
     steps:
