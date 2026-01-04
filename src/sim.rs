@@ -1,8 +1,9 @@
 mod problem;
+mod run;
 mod sink;
 
 use crate::sim::problem::Problem;
-use crate::util::model::{Entity, Simulation, SimulationRun, SimulationRunData, System};
+use crate::util::model::{Simulation, SimulationRun};
 use anyhow::{Context, Result, anyhow};
 use futures::StreamExt;
 use reqwest::StatusCode;
@@ -116,40 +117,14 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
         fs::create_dir_all(simulation_run_directory)?;
     }
 
-    let simulation_run_data = {
-        let entities_response = client
-            .get(format!(
-                "{api_url}/simulations/{simulation_key}/runs/{run_index}/entities",
-                api_url = config.api_url,
-                simulation_key = simulation_run.simulation,
-                run_index = simulation_run.index
-            ))
-            .header("Authorization", format!("Bearer {}", api_key))
-            .send()
-            .await?;
-
-        let entities = entities_response.json::<Vec<Entity>>().await?;
-
-        let systems_response = client
-            .get(format!(
-                "{api_url}/simulations/{simulation_key}/runs/{run_index}/systems",
-                api_url = config.api_url,
-                simulation_key = simulation_run.simulation,
-                run_index = simulation_run.index
-            ))
-            .header("Authorization", format!("Bearer {}", api_key))
-            .send()
-            .await?;
-
-        let systems = systems_response.json::<Vec<System>>().await?;
-
-        SimulationRunData {
-            simulation: simulation_run.simulation.clone(),
-            index: simulation_run.index.clone(),
-            entities,
-            systems,
-        }
-    };
+    let simulation_run_data = run::get_simulation_run_data(
+        &client,
+        &config.api_url,
+        &api_key,
+        &simulation_run.simulation,
+        simulation_run.index,
+    )
+    .await?;
 
     let mut simulation_sink = if stdout {
         SimulationSink::stream()
