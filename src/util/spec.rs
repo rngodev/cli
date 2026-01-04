@@ -43,7 +43,7 @@ pub fn load_spec_from_project_directory() -> Result<Value> {
         }
     }
 
-    if entities_map.len() == 0 {
+    if entities_map.is_empty() {
         bail!(
             "No entities found under {}",
             entities_path.to_string_lossy()
@@ -78,10 +78,10 @@ pub fn load_spec_from_project_directory() -> Result<Value> {
         default_spec.insert("seed".into(), 1.into());
 
         // Set "key" to current directory name
-        if let Ok(current_dir) = std::env::current_dir() {
-            if let Some(dir_name) = current_dir.file_name().and_then(|s| s.to_str()) {
-                default_spec.insert("key".into(), dir_name.into());
-            }
+        if let Ok(current_dir) = std::env::current_dir()
+            && let Some(dir_name) = current_dir.file_name().and_then(|s| s.to_str())
+        {
+            default_spec.insert("key".into(), dir_name.into());
         }
 
         default_spec

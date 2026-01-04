@@ -30,26 +30,23 @@ impl SimulationSink {
 
     pub fn write_event(&mut self, event_data: EventData) {
         if let EventData::Error { .. } = event_data {
-            match serde_json::to_string(&event_data) {
-                Ok(str) => eprintln!("Error: {}", str),
-                Err(_) => (),
+            if let Ok(str) = serde_json::to_string(&event_data) {
+                eprintln!("Error: {}", str)
             }
         } else if self.stream {
-            match serde_json::to_string(&event_data) {
-                Ok(str) => println!("{}", str),
-                Err(_) => (),
+            if let Ok(str) = serde_json::to_string(&event_data) {
+                println!("{}", str)
             }
-        } else if let EventData::Create { entity, value, .. } = event_data {
-            if let Some(entity) = self.entities.get(&entity) {
-                if let Some(system_sink) = self.system_sinks.get_mut(&entity.system_key) {
-                    let value = match entity.format_type {
-                        FormatType::Json => &value.to_string(),
-                        _ => value.as_str().unwrap(),
-                    };
+        } else if let EventData::Create { entity, value, .. } = event_data
+            && let Some(entity) = self.entities.get(&entity)
+            && let Some(system_sink) = self.system_sinks.get_mut(&entity.system_key)
+        {
+            let value = match entity.format_type {
+                FormatType::Json => &value.to_string(),
+                _ => value.as_str().unwrap(),
+            };
 
-                    let _ = writeln!(system_sink, "{}", value);
-                }
-            }
+            let _ = writeln!(system_sink, "{}", value);
         }
     }
 }
@@ -124,7 +121,7 @@ impl TryFrom<SimulationRunData> for SimulationSink {
                     .create(true)
                     .append(true)
                     .open(file_path.clone())
-                    .expect(&format!("Failed to open file at {}", file_path.display()));
+                    .unwrap_or_else(|_| panic!("Failed to open file at {}", file_path.display()));
 
                 let system_key = format!("{}_{}", system_type, entity.key);
 

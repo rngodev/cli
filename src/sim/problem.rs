@@ -23,7 +23,9 @@ impl fmt::Display for ProblemIssue {
                 for path_part in path {
                     match path_part {
                         PathPart::Index(i) => path_str += &format!("[{}]", i),
-                        PathPart::Field(s) if path_str.len() > 0 => path_str += &format!(".{}", s),
+                        PathPart::Field(s) if !path_str.is_empty() => {
+                            path_str += &format!(".{}", s)
+                        }
                         PathPart::Field(s) => path_str = s.into(),
                     }
                 }
@@ -45,11 +47,11 @@ pub struct Problem {
 
 impl fmt::Display for Problem {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.issues.len() > 0 {
+        if !self.issues.is_empty() {
             let issues = self
                 .issues
                 .iter()
-                .map(|item| format!("  {}", item.to_string()))
+                .map(|item| format!("  {}", item))
                 .collect::<Vec<_>>()
                 .join("\n");
 
