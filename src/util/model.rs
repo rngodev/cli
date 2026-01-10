@@ -15,6 +15,7 @@ pub struct Format {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SystemImport {
+    pub before: Option<String>,
     pub command: String,
 }
 

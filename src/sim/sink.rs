@@ -64,6 +64,9 @@ impl TryFrom<SimulationRunData> for SimulationSink {
         let simulation_directory = format!(".rngo/runs/{}", simulation_run_data.index);
         let simulation_directory = Path::new(&simulation_directory);
 
+        // Track which systems have had their 'before' command run
+        let mut systems_initialized: HashMap<String, ()> = HashMap::new();
+
         for entity in simulation_run_data.entities.iter() {
             if let Some(entity_system) = &entity.system {
                 let system = simulation_run_data
@@ -79,6 +82,35 @@ impl TryFrom<SimulationRunData> for SimulationSink {
 
                 #[cfg(not(target_os = "windows"))]
                 let (shell, flag) = ("sh", "-c");
+
+                // Run the 'before' command once per system if it exists
+                if let Some(before_command) = &system.import.before {
+                    if !systems_initialized.contains_key(&entity_system.stype) {
+                        let status = Command::new(shell)
+                            .arg(flag)
+                            .arg(before_command)
+                            .stdin(Stdio::null())
+                            .stdout(Stdio::inherit())
+                            .stderr(Stdio::inherit())
+                            .status()
+                            .with_context(|| {
+                                format!(
+                                    "Could not run before command for system {}:\n\n{}",
+                                    entity_system.stype, before_command
+                                )
+                            })?;
+
+                        if !status.success() {
+                            anyhow::bail!(
+                                "Before command failed for system {} with status: {}",
+                                entity_system.stype,
+                                status
+                            );
+                        }
+
+                        systems_initialized.insert(entity_system.stype.clone(), ());
+                    }
+                }
 
                 let mut child = Command::new(shell)
                     .arg(flag)
