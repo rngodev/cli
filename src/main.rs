@@ -48,6 +48,8 @@ enum Commands {
 enum InferCommands {
     /// Output an LLM prompt to infer rngo entites from the current application.
     Prompt {},
+    /// Output an LLM skill document for inferring systems.
+    Systems {},
 }
 
 #[tokio::main]
@@ -58,7 +60,10 @@ async fn main() -> Result<()> {
         Commands::Init {} => init::init().await,
         Commands::Login {} => login::login().await,
         Commands::Logout {} => logout::logout().await,
-        Commands::Infer { .. } => infer::infer().await,
+        Commands::Infer { command } => match command {
+            InferCommands::Prompt {} => infer::infer_prompt().await,
+            InferCommands::Systems {} => infer::infer_systems().await,
+        },
         Commands::Sim { spec, stdout } => sim::sim(spec, stdout).await,
     }
 }
