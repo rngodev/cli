@@ -84,8 +84,8 @@ impl TryFrom<SimulationRunData> for SimulationSink {
                 let (shell, flag) = ("sh", "-c");
 
                 // Run the 'before' command once per system if it exists
-                if let Some(before_command) = &system.import.before {
-                    if !systems_initialized.contains_key(&entity_system.stype) {
+                if let Some(before_command) = &system.import.before
+                    && !systems_initialized.contains_key(&entity_system.stype) {
                         let status = Command::new(shell)
                             .arg(flag)
                             .arg(before_command)
@@ -110,7 +110,6 @@ impl TryFrom<SimulationRunData> for SimulationSink {
 
                         systems_initialized.insert(entity_system.stype.clone(), ());
                     }
-                }
 
                 let mut child = Command::new(shell)
                     .arg(flag)

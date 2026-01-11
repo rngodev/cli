@@ -4,7 +4,7 @@ use anyhow::Result;
 use reqwest::StatusCode;
 use std::process::Command;
 
-pub async fn infer() -> Result<()> {
+pub async fn infer_prompt() -> Result<()> {
     let config = crate::util::config::get_config()?;
     let client = reqwest::Client::new();
 
@@ -65,6 +65,28 @@ pub async fn infer() -> Result<()> {
 
     let system_prompts = system_prompts.join("\n\n");
     println!("{prompt}\n{inference_instructions}\n\n{system_prompts}");
+
+    Ok(())
+}
+
+pub async fn infer_systems() -> Result<()> {
+    let config = crate::util::config::get_config()?;
+    let client = reqwest::Client::new();
+
+    let response = client
+        .get(format!(
+            "{docs_url}/llm/skills/infer-systems.md",
+            docs_url = config.docs_url
+        ))
+        .send()
+        .await?;
+
+    if response.status() != StatusCode::OK {
+        anyhow::bail!("Failed to download system inference prompt")
+    }
+
+    let content = response.text().await?;
+    println!("{content}");
 
     Ok(())
 }
