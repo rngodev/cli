@@ -1,7 +1,9 @@
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use serde_json::{Map, Value};
 use std::fs;
 use std::path::Path;
+
+use crate::util::config::Config;
 
 pub fn load_spec_from_file(spec_path: String) -> Result<Value> {
     let path = Path::new(&spec_path);
@@ -15,7 +17,7 @@ pub fn load_spec_from_file(spec_path: String) -> Result<Value> {
         .with_context(|| format!("Failed to parse spec file at {}", path.to_string_lossy()))
 }
 
-pub fn load_spec_from_project_directory() -> Result<Value> {
+pub fn load_spec_from_project_directory(config: &Config) -> Result<Value> {
     let rngo_path = Path::new(".rngo");
     let entities_path = rngo_path.join("entities");
 
@@ -52,40 +54,23 @@ pub fn load_spec_from_project_directory() -> Result<Value> {
 
     let systems_map = load_systems_from_project_directory()?;
 
-    // Try to load base spec from .rngo/spec.yml, fallback to default map
-    let rngo_spec_path = rngo_path.join("spec.yml");
-    let mut spec = if rngo_spec_path.exists() {
-        let spec_content = fs::read_to_string(&rngo_spec_path)?;
-        let yaml_value: serde_yaml::Value =
-            serde_yaml::from_str(&spec_content).with_context(|| {
-                format!(
-                    "Failed to parse spec file at {}",
-                    rngo_spec_path.to_string_lossy()
-                )
-            })?;
-        let json_value: serde_json::Value = serde_json::to_value(yaml_value)?;
+    let mut spec = Map::new();
+    spec.insert("seed".into(), config.seed.unwrap_or(1).into());
 
-        if let serde_json::Value::Object(map) = json_value {
-            map
-        } else {
-            bail!(
-                "Spec file at {} must contain a YAML object",
-                rngo_spec_path.to_string_lossy()
-            );
-        }
+    if let Some(key) = &config.key {
+        spec.insert("key".into(), key.clone().into());
     } else {
-        let mut default_spec = Map::new();
-        default_spec.insert("seed".into(), 1.into());
+        let dir_name = std::env::current_dir()
+            .ok()
+            .and_then(|dir| {
+                dir.file_name()
+                    .and_then(|s| s.to_str())
+                    .map(|s| s.to_string())
+            })
+            .ok_or_else(|| anyhow!("Failed to get current directory"))?;
 
-        // Set "key" to current directory name
-        if let Ok(current_dir) = std::env::current_dir()
-            && let Some(dir_name) = current_dir.file_name().and_then(|s| s.to_str())
-        {
-            default_spec.insert("key".into(), dir_name.into());
-        }
-
-        default_spec
-    };
+        spec.insert("key".into(), dir_name.into());
+    }
 
     if !systems_map.is_empty() {
         spec.insert("systems".into(), serde_json::Value::Object(systems_map));

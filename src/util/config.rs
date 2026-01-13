@@ -7,11 +7,24 @@ use std::path::PathBuf;
 
 #[derive(Debug, Deserialize, Serialize, Default)]
 pub struct Config {
+    pub key: Option<String>,
     pub api_key: Option<String>,
     #[serde(default = "default_api_url")]
     pub api_url: String,
     #[serde(default = "default_docs_url")]
     pub docs_url: String,
+    pub seed: Option<u64>,
+    pub ai: Option<AiConfig>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub enum AiAgent {
+    Claude,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct AiConfig {
+    pub agent: AiAgent,
 }
 
 fn default_api_url() -> String {
@@ -23,8 +36,17 @@ fn default_docs_url() -> String {
 }
 
 pub fn get_config() -> Result<Config> {
-    let config = config::Config::builder()
+    let user_config = config::Config::builder()
         .add_source(config::File::from(user_config_file_path()?).required(false))
+        .build()?;
+
+    let project_config = config::Config::builder()
+        .add_source(config::File::from(project_config_file_path()?).required(false))
+        .build()?;
+
+    let config = config::Config::builder()
+        .add_source(user_config)
+        .add_source(project_config)
         .add_source(config::Environment::with_prefix("RNGO"))
         .build()?;
 
@@ -54,4 +76,9 @@ fn user_config_file_path() -> Result<PathBuf> {
 
     config_path.push("config");
     Ok(config_path)
+}
+
+fn project_config_file_path() -> Result<PathBuf> {
+    let path: PathBuf = [".", ".rngo", "config.yml"].iter().collect();
+    Ok(path)
 }

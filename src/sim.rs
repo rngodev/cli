@@ -39,6 +39,7 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
     let config = crate::util::config::get_config()?;
     let api_key = config
         .api_key
+        .as_ref()
         .ok_or_else(|| anyhow!("Could not find API key"))?;
 
     let client = reqwest::Client::new();
@@ -47,7 +48,7 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
         let spec = if let Some(spec) = spec {
             crate::util::spec::load_spec_from_file(spec)?
         } else {
-            crate::util::spec::load_spec_from_project_directory()?
+            crate::util::spec::load_spec_from_project_directory(&config)?
         };
 
         let mut spec = crate::util::spec::ensure_spec_output_is_stream(spec);
