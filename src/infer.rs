@@ -68,25 +68,3 @@ pub async fn infer_prompt() -> Result<()> {
 
     Ok(())
 }
-
-pub async fn infer_systems() -> Result<()> {
-    let config = crate::util::config::get_config()?;
-    let client = reqwest::Client::new();
-
-    let response = client
-        .get(format!(
-            "{docs_url}/llm/skills/infer-systems.md",
-            docs_url = config.docs_url
-        ))
-        .send()
-        .await?;
-
-    if response.status() != StatusCode::OK {
-        anyhow::bail!("Failed to download system inference prompt")
-    }
-
-    let content = response.text().await?;
-    println!("{content}");
-
-    Ok(())
-}
