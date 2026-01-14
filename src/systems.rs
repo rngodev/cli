@@ -80,7 +80,11 @@ pub async fn infer_systems(prompt_only: bool, verbose: bool) -> Result<()> {
         } else {
             Stdio::null()
         })
-        .stderr(Stdio::inherit())
+        .stderr(if verbose {
+            Stdio::inherit()
+        } else {
+            Stdio::null()
+        })
         .spawn()?;
 
     // Write the content to the agent's stdin if needed
@@ -139,6 +143,7 @@ fn summarize_systems() -> Result<()> {
         for system in system_files {
             println!("  - {}", system);
         }
+        println!("Learn how to further customize systems at https://rngo.dev/docs/concepts/system");
     }
 
     Ok(())
