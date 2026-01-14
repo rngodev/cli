@@ -6,6 +6,7 @@ use std::io::Write;
 use std::path::PathBuf;
 
 #[derive(Debug, Deserialize, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct Config {
     pub key: Option<String>,
     pub api_key: Option<String>,
@@ -18,8 +19,11 @@ pub struct Config {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub enum AiAgent {
     Claude,
+    Codex,
+    Copilot,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

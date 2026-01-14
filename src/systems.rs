@@ -29,15 +29,52 @@ pub async fn infer_systems(prompt_only: bool, verbose: bool) -> Result<()> {
         return Ok(());
     }
 
-    println!("Running system inference prompt in Claude Code...\n");
+    // Check if ai.agent is configured and determine which CLI to use
+    let (cli_name, agent_name) = match &config.ai {
+        Some(ai_config) => match ai_config.agent {
+            crate::util::config::AiAgent::Claude => ("claude", "Claude Code"),
+            crate::util::config::AiAgent::Codex => ("codex", "Codex"),
+            crate::util::config::AiAgent::Copilot => ("copilot", "Copilot"),
+        },
+        None => {
+            anyhow::bail!(
+                "AI agent must be configured to run this command.\n\
+                 Please set ai.agent in your .rngo/config.yml or user config file:\n\n\
+                 ai:\n  agent: claude  # or codex, or copilot"
+            );
+        }
+    };
 
-    // Spawn claude process with stdin piped
-    // In verbose mode, inherit stdout to see Claude's output
-    let mut child = Command::new("claude")
-        .arg("-p")
-        .arg("--permission-mode")
-        .arg("acceptEdits")
-        .stdin(Stdio::piped())
+    println!("Running system inference prompt in {}...\n", agent_name);
+
+    // Build the command with appropriate arguments for each agent
+    let mut cmd = Command::new(cli_name);
+    let needs_stdin = match &config.ai {
+        Some(ai_config) => match ai_config.agent {
+            crate::util::config::AiAgent::Claude => {
+                cmd.arg("-p").arg("--permission-mode").arg("acceptEdits");
+                true // Claude receives prompt via stdin
+            }
+            crate::util::config::AiAgent::Codex => {
+                cmd.arg("exec").arg("--full-auto");
+                true // Codex receives prompt via stdin
+            }
+            crate::util::config::AiAgent::Copilot => {
+                cmd.arg("-p").arg(&content).arg("--allow-all-tools");
+                false // Copilot receives prompt as argument
+            }
+        },
+        None => unreachable!(), // Already checked above
+    };
+
+    // Spawn the CLI process
+    // In verbose mode, inherit stdout to see the agent's output
+    let mut child = cmd
+        .stdin(if needs_stdin {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        })
         .stdout(if verbose {
             Stdio::inherit()
         } else {
@@ -46,16 +83,18 @@ pub async fn infer_systems(prompt_only: bool, verbose: bool) -> Result<()> {
         .stderr(Stdio::inherit())
         .spawn()?;
 
-    // Write the content to claude's stdin
-    if let Some(mut stdin) = child.stdin.take() {
-        stdin.write_all(content.as_bytes())?;
+    // Write the content to the agent's stdin if needed
+    if needs_stdin {
+        if let Some(mut stdin) = child.stdin.take() {
+            stdin.write_all(content.as_bytes())?;
+        }
     }
 
     // Wait for the process to complete
     let status = child.wait()?;
 
     if !status.success() {
-        anyhow::bail!("claude exited with status: {}", status)
+        anyhow::bail!("{} exited with status: {}", agent_name, status)
     }
 
     // Summarize results
