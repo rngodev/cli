@@ -88,10 +88,8 @@ pub async fn infer_systems(prompt_only: bool, verbose: bool) -> Result<()> {
         .spawn()?;
 
     // Write the content to the agent's stdin if needed
-    if needs_stdin {
-        if let Some(mut stdin) = child.stdin.take() {
-            stdin.write_all(content.as_bytes())?;
-        }
+    if needs_stdin && let Some(mut stdin) = child.stdin.take() {
+        stdin.write_all(content.as_bytes())?;
     }
 
     // Wait for the process to complete
@@ -118,18 +116,16 @@ fn summarize_systems() -> Result<()> {
     let entries = fs::read_dir(systems_dir)?;
     let mut system_files: Vec<String> = Vec::new();
 
-    for entry in entries {
-        if let Ok(entry) = entry {
-            let path = entry.path();
+    for entry in entries.flatten() {
+        let path = entry.path();
 
-            if path.is_file() {
-                let ext = path.extension().and_then(|s| s.to_str());
+        if path.is_file() {
+            let ext = path.extension().and_then(|s| s.to_str());
 
-                if ext == Some("yml") || ext == Some("yaml") {
-                    if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                        system_files.push(stem.to_string());
-                    }
-                }
+            if (ext == Some("yml") || ext == Some("yaml"))
+                && let Some(stem) = path.file_stem().and_then(|s| s.to_str())
+            {
+                system_files.push(stem.to_string());
             }
         }
     }

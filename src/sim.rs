@@ -121,7 +121,7 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
     let simulation_run_data = run::get_simulation_run_data(
         &client,
         &config.api_url,
-        &api_key,
+        api_key,
         &simulation_run.simulation,
         simulation_run.index,
     )
