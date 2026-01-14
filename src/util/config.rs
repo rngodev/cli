@@ -5,7 +5,7 @@ use std::fs::{self, File};
 use std::io::Write;
 use std::path::PathBuf;
 
-#[derive(Debug, Deserialize, Serialize, Default)]
+#[derive(Debug, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
     pub key: Option<String>,
@@ -14,8 +14,20 @@ pub struct Config {
     pub api_url: String,
     #[serde(default = "default_docs_url")]
     pub docs_url: String,
-    pub seed: Option<u64>,
+    #[serde(default = "default_seed")]
+    pub seed: u64,
     pub ai: Option<AiConfig>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct UserConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub docs_url: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -39,6 +51,10 @@ fn default_docs_url() -> String {
     "https://rngo.dev/docs".into()
 }
 
+fn default_seed() -> u64 {
+    1
+}
+
 pub fn get_config() -> Result<Config> {
     let user_config = config::Config::builder()
         .add_source(config::File::from(user_config_file_path()?).required(false))
@@ -59,7 +75,20 @@ pub fn get_config() -> Result<Config> {
         .with_context(|| "Failed to deserialize config")
 }
 
-pub fn set_config(config: Config) -> Result<()> {
+pub fn set_user_config<F>(f: F) -> Result<()>
+where
+    F: FnOnce(&mut UserConfig),
+{
+    let user_config_builder = config::Config::builder()
+        .add_source(config::File::from(user_config_file_path()?).required(false))
+        .build()?;
+
+    let mut config = user_config_builder
+        .try_deserialize::<UserConfig>()
+        .unwrap_or_default();
+
+    f(&mut config);
+
     let mut file_base_path = user_config_file_path()?;
     file_base_path.set_extension("yml");
 
