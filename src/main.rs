@@ -1,4 +1,4 @@
-mod infer;
+mod entities;
 mod init;
 mod login;
 mod logout;
@@ -28,10 +28,10 @@ enum Commands {
     Login {},
     /// Delete the API key saved for API authentication.
     Logout {},
-    /// Infer rngo entities using an LLM - see `rngo infer prompt`.
-    Infer {
+    /// Commands for working with entities.
+    Entities {
         #[command(subcommand)]
-        command: InferCommands,
+        command: EntitiesCommands,
     },
     /// Commands for working with systems.
     Systems {
@@ -51,9 +51,17 @@ enum Commands {
 }
 
 #[derive(Debug, Subcommand)]
-enum InferCommands {
-    /// Output an LLM prompt to infer rngo entites from the current application.
-    Prompt {},
+enum EntitiesCommands {
+    /// Infer entities using an LLM.
+    Infer {
+        /// Output the prompt instead of running the agent
+        #[arg(long)]
+        prompt: bool,
+
+        /// Show the agent's output (verbose mode)
+        #[arg(short, long)]
+        verbose: bool,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -78,8 +86,10 @@ async fn main() -> Result<()> {
         Commands::Init {} => init::init().await,
         Commands::Login {} => login::login().await,
         Commands::Logout {} => logout::logout().await,
-        Commands::Infer { command } => match command {
-            InferCommands::Prompt {} => infer::infer_prompt().await,
+        Commands::Entities { command } => match command {
+            EntitiesCommands::Infer { prompt, verbose } => {
+                entities::infer_entities(prompt, verbose).await
+            }
         },
         Commands::Systems { command } => match command {
             SystemsCommands::Infer { prompt, verbose } => {
