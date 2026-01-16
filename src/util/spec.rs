@@ -55,7 +55,7 @@ pub fn load_spec_from_project_directory(config: &Config) -> Result<Value> {
     let systems_map = load_systems_from_project_directory()?;
 
     let mut spec = Map::new();
-    spec.insert("seed".into(), config.seed.unwrap_or(1).into());
+    spec.insert("seed".into(), config.seed.into());
 
     if let Some(key) = &config.key {
         spec.insert("key".into(), key.clone().into());
