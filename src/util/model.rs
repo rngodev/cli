@@ -39,6 +39,13 @@ pub struct System {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct LocalSystem {
+    pub format: Format,
+    pub import: SystemImport,
+    pub infer: Option<SystemInfer>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EntitySystem {
     #[serde(rename = "type")]
     pub stype: String,

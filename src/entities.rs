@@ -1,16 +1,19 @@
-use crate::util::model::System;
+use crate::util::ai::run_prompt;
+use crate::util::model::LocalSystem;
 use crate::util::spec::load_systems_from_project_directory;
 use anyhow::Result;
 use reqwest::StatusCode;
+use std::fs;
+use std::path::Path;
 use std::process::Command;
 
-pub async fn infer_prompt() -> Result<()> {
+pub async fn infer_entities(prompt_only: bool, verbose: bool) -> Result<()> {
     let config = crate::util::config::get_config()?;
     let client = reqwest::Client::new();
 
     let response = client
         .get(format!(
-            "{docs_url}/llm/infer.md",
+            "{docs_url}/llm/skills/infer-entities.md",
             docs_url = config.docs_url
         ))
         .send()
@@ -26,7 +29,7 @@ pub async fn infer_prompt() -> Result<()> {
     let mut system_prompts = vec![];
 
     for (key, system) in systems {
-        let system: System = serde_json::from_value(system)?;
+        let system: LocalSystem = serde_json::from_value(system)?;
         let context_parts = system
             .infer
             .and_then(|infer| infer.context)
@@ -64,7 +67,61 @@ pub async fn infer_prompt() -> Result<()> {
     };
 
     let system_prompts = system_prompts.join("\n\n");
-    println!("{prompt}\n{inference_instructions}\n\n{system_prompts}");
+    let content = format!("{prompt}\n{inference_instructions}\n\n{system_prompts}");
+
+    // If --prompt flag is set, just output the prompt and exit
+    if prompt_only {
+        println!("{}", content);
+        return Ok(());
+    }
+
+    // Run the prompt through the configured AI agent
+    run_prompt(&config, &content, verbose, "entity inference")?;
+
+    // Summarize results
+    summarize_entities()?;
+
+    Ok(())
+}
+
+fn summarize_entities() -> Result<()> {
+    let entities_dir = Path::new(".rngo/entities");
+
+    if !entities_dir.exists() {
+        println!("No entities directory found at .rngo/entities");
+        return Ok(());
+    }
+
+    let entries = fs::read_dir(entities_dir)?;
+    let mut entity_files: Vec<String> = Vec::new();
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+
+        if path.is_file() {
+            let ext = path.extension().and_then(|s| s.to_str());
+
+            if (ext == Some("yml") || ext == Some("yaml"))
+                && let Some(stem) = path.file_stem().and_then(|s| s.to_str())
+            {
+                entity_files.push(stem.to_string());
+            }
+        }
+    }
+
+    entity_files.sort();
+
+    if entity_files.is_empty() {
+        println!("No entity definition files found in .rngo/entities/");
+    } else {
+        println!("Success! Entity definitions created:");
+        for entity in entity_files {
+            println!("  - {}", entity);
+        }
+        println!(
+            "Learn how to further customize entities at https://rngo.dev/docs/concepts/entity"
+        );
+    }
 
     Ok(())
 }

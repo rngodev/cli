@@ -1,4 +1,4 @@
-use crate::util::config::{Config, get_config, set_config};
+use crate::util::config::{get_config, set_user_config};
 use anyhow::Result;
 use inquire::Confirm;
 
@@ -17,12 +17,7 @@ pub async fn logout() -> Result<()> {
         return Ok(());
     }
 
-    let new_config = Config {
-        api_key: None,
-        ..config
-    };
-
-    set_config(new_config)?;
+    set_user_config(|config| config.api_key = None)?;
     println!("Successfully logged out");
     Ok(())
 }
