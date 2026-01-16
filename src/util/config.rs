@@ -67,7 +67,7 @@ pub fn get_config() -> Result<Config> {
     let config = config::Config::builder()
         .add_source(user_config)
         .add_source(project_config)
-        .add_source(config::Environment::with_prefix("RNGO"))
+        .add_source(config::Environment::with_prefix("RNGO").convert_case(config::Case::Camel))
         .build()?;
 
     config

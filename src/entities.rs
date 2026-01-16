@@ -1,5 +1,5 @@
 use crate::util::ai::run_prompt;
-use crate::util::model::System;
+use crate::util::model::LocalSystem;
 use crate::util::spec::load_systems_from_project_directory;
 use anyhow::Result;
 use reqwest::StatusCode;
@@ -13,7 +13,7 @@ pub async fn infer_entities(prompt_only: bool, verbose: bool) -> Result<()> {
 
     let response = client
         .get(format!(
-            "{docs_url}/llm/infer.md",
+            "{docs_url}/llm/skills/infer-entities.md",
             docs_url = config.docs_url
         ))
         .send()
@@ -29,7 +29,7 @@ pub async fn infer_entities(prompt_only: bool, verbose: bool) -> Result<()> {
     let mut system_prompts = vec![];
 
     for (key, system) in systems {
-        let system: System = serde_json::from_value(system)?;
+        let system: LocalSystem = serde_json::from_value(system)?;
         let context_parts = system
             .infer
             .and_then(|infer| infer.context)
