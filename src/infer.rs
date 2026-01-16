@@ -5,6 +5,9 @@ use reqwest::StatusCode;
 use std::process::Command;
 
 pub async fn infer_prompt() -> Result<()> {
+    // Load .env files before executing any commands
+    let _ = dotenvy::dotenv();
+
     let config = crate::util::config::get_config()?;
     let client = reqwest::Client::new();
 

@@ -55,6 +55,9 @@ impl TryFrom<SimulationRunData> for SimulationSink {
     type Error = anyhow::Error;
 
     fn try_from(simulation_run_data: SimulationRunData) -> Result<Self> {
+        // Load .env files before executing any commands
+        let _ = dotenvy::dotenv();
+
         let mut simulation_sink = SimulationSink {
             system_sinks: HashMap::new(),
             entities: HashMap::new(),
@@ -85,31 +88,32 @@ impl TryFrom<SimulationRunData> for SimulationSink {
 
                 // Run the 'before' command once per system if it exists
                 if let Some(before_command) = &system.import.before
-                    && !systems_initialized.contains_key(&entity_system.stype) {
-                        let status = Command::new(shell)
-                            .arg(flag)
-                            .arg(before_command)
-                            .stdin(Stdio::null())
-                            .stdout(Stdio::inherit())
-                            .stderr(Stdio::inherit())
-                            .status()
-                            .with_context(|| {
-                                format!(
-                                    "Could not run before command for system {}:\n\n{}",
-                                    entity_system.stype, before_command
-                                )
-                            })?;
+                    && !systems_initialized.contains_key(&entity_system.stype)
+                {
+                    let status = Command::new(shell)
+                        .arg(flag)
+                        .arg(before_command)
+                        .stdin(Stdio::null())
+                        .stdout(Stdio::inherit())
+                        .stderr(Stdio::inherit())
+                        .status()
+                        .with_context(|| {
+                            format!(
+                                "Could not run before command for system {}:\n\n{}",
+                                entity_system.stype, before_command
+                            )
+                        })?;
 
-                        if !status.success() {
-                            anyhow::bail!(
-                                "Before command failed for system {} with status: {}",
-                                entity_system.stype,
-                                status
-                            );
-                        }
-
-                        systems_initialized.insert(entity_system.stype.clone(), ());
+                    if !status.success() {
+                        anyhow::bail!(
+                            "Before command failed for system {} with status: {}",
+                            entity_system.stype,
+                            status
+                        );
                     }
+
+                    systems_initialized.insert(entity_system.stype.clone(), ());
+                }
 
                 let mut child = Command::new(shell)
                     .arg(flag)
