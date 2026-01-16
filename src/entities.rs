@@ -8,6 +8,8 @@ use std::path::Path;
 use std::process::Command;
 
 pub async fn infer_entities(prompt_only: bool, verbose: bool) -> Result<()> {
+    let _ = dotenvy::dotenv();
+
     let config = crate::util::config::get_config()?;
     let client = reqwest::Client::new();
 

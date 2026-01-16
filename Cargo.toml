@@ -26,6 +26,7 @@ anyhow = "1.0.98"
 clap = { version = "4.5.39", features = ["derive"] }
 config = { version = "0.15.11", features = ["convert-case"] }
 directories = "6.0.0"
+dotenvy = "0.15.7"
 futures = "0.3.31"
 inquire = "0.7.5"
 reqwest = { version = "0.12.19", default-features = false, features = [
