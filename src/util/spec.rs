@@ -72,6 +72,14 @@ pub fn load_spec_from_project_directory(config: &Config) -> Result<Value> {
         spec.insert("key".into(), dir_name.into());
     }
 
+    if let Some(start) = &config.start {
+        spec.insert("start".into(), start.clone().into());
+    }
+
+    if let Some(end) = &config.end {
+        spec.insert("end".into(), end.clone().into());
+    }
+
     if !systems_map.is_empty() {
         spec.insert("systems".into(), serde_json::Value::Object(systems_map));
     }

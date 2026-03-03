@@ -16,6 +16,8 @@ pub struct Config {
     pub docs_url: String,
     #[serde(default = "default_seed")]
     pub seed: u64,
+    pub start: Option<String>,
+    pub end: Option<String>,
     pub ai: Option<AiConfig>,
 }
 
