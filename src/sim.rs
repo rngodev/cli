@@ -133,7 +133,15 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
         if last_symlink.symlink_metadata().is_ok() {
             fs::remove_file(last_symlink)?;
         }
-        std::os::unix::fs::symlink(simulation_run.index.to_string(), last_symlink)?;
+        let symlink_result = {
+            #[cfg(unix)]
+            { std::os::unix::fs::symlink(simulation_run.index.to_string(), last_symlink) }
+            #[cfg(windows)]
+            { std::os::windows::fs::symlink_dir(simulation_run.index.to_string(), last_symlink) }
+        };
+        if let Err(e) = symlink_result {
+            eprintln!("Warning: could not create symlink at {}: {}", last_symlink.display(), e);
+        }
     }
 
     let simulation_run_data = run::get_simulation_run_data(
