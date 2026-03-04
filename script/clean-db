@@ -1,0 +1,2 @@
+rm db1.sqlite
+sqlite3 db1.sqlite < test/db1-schema.sql

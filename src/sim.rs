@@ -21,7 +21,12 @@ pub enum EventData {
         id: u64,
         entity: String,
         offset: i64,
-        value: Value,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        metadata: Vec<Metadata>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        value: Option<Value>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        format: Option<String>,
     },
     Error {
         id: u64,
@@ -33,6 +38,13 @@ pub enum EventData {
         path: Option<Vec<String>>,
         message: String,
     },
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Metadata {
+    tag: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    path: Vec<String>,
 }
 
 pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
