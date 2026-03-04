@@ -128,6 +128,12 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
 
     if !stdout {
         fs::create_dir_all(simulation_run_directory)?;
+
+        let last_symlink = Path::new(".rngo/runs/last");
+        if last_symlink.symlink_metadata().is_ok() {
+            fs::remove_file(last_symlink)?;
+        }
+        std::os::unix::fs::symlink(simulation_run.index.to_string(), last_symlink)?;
     }
 
     let simulation_run_data = run::get_simulation_run_data(
