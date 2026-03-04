@@ -33,10 +33,10 @@ impl SimulationSink {
     pub fn write_event(&mut self, event_data: EventData) {
         match &event_data {
             EventData::Create { metadata, .. } if !metadata.is_empty() => {
-                if let Some(ref mut sink) = self.samples_sink {
-                    if let Ok(json) = serde_json::to_string(&event_data) {
-                        let _ = writeln!(sink, "{}", json);
-                    }
+                if let Some(ref mut sink) = self.samples_sink
+                    && let Ok(json) = serde_json::to_string(&event_data)
+                {
+                    let _ = writeln!(sink, "{}", json);
                 }
             }
             _ => {}
