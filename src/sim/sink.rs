@@ -11,6 +11,7 @@ pub struct SimulationSink {
     entities: HashMap<String, Entity>,
     system_sinks: HashMap<String, Box<dyn Write>>,
     stream: bool,
+    samples_sink: Option<Box<dyn Write>>,
 }
 
 #[derive(Debug)]
@@ -25,10 +26,22 @@ impl SimulationSink {
             system_sinks: HashMap::new(),
             entities: HashMap::new(),
             stream: true,
+            samples_sink: None,
         }
     }
 
     pub fn write_event(&mut self, event_data: EventData) {
+        match &event_data {
+            EventData::Create { metadata, .. } if !metadata.is_empty() => {
+                if let Some(ref mut sink) = self.samples_sink {
+                    if let Ok(json) = serde_json::to_string(&event_data) {
+                        let _ = writeln!(sink, "{}", json);
+                    }
+                }
+            }
+            _ => {}
+        }
+
         if let EventData::Error { .. } = event_data {
             if let Ok(str) = serde_json::to_string(&event_data) {
                 eprintln!("Error: {}", str)
@@ -37,13 +50,18 @@ impl SimulationSink {
             if let Ok(str) = serde_json::to_string(&event_data) {
                 println!("{}", str)
             }
-        } else if let EventData::Create { entity, value, .. } = event_data
+        } else if let EventData::Create {
+            entity,
+            value,
+            format,
+            ..
+        } = event_data
             && let Some(entity) = self.entities.get(&entity)
             && let Some(system_sink) = self.system_sinks.get_mut(&entity.system_key)
         {
             let value = match entity.format_type {
-                FormatType::Json => &value.to_string(),
-                _ => value.as_str().unwrap(),
+                FormatType::Json => &value.expect("value for JSON entities").to_string(),
+                _ => &format.expect("format for non-JSON entities"),
             };
 
             let _ = writeln!(system_sink, "{}", value);
@@ -58,14 +76,21 @@ impl TryFrom<SimulationRunData> for SimulationSink {
         // Load .env files before executing any commands
         let _ = dotenvy::dotenv();
 
+        let simulation_directory = format!(".rngo/runs/{}", simulation_run_data.index);
+        let simulation_directory = Path::new(&simulation_directory);
+
         let mut simulation_sink = SimulationSink {
             system_sinks: HashMap::new(),
             entities: HashMap::new(),
             stream: false,
+            samples_sink: Some(Box::new(BufWriter::new(
+                OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(simulation_directory.join("samples.jsonl"))
+                    .expect("Failed to open samples.jsonl"),
+            ))),
         };
-
-        let simulation_directory = format!(".rngo/runs/{}", simulation_run_data.index);
-        let simulation_directory = Path::new(&simulation_directory);
 
         // Track which systems have had their 'before' command run
         let mut systems_initialized: HashMap<String, ()> = HashMap::new();
