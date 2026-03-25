@@ -1,7 +1,8 @@
 seed: 1
-entities:
+effects:
   users:
-    stream:
+    entity: users
+    schema:
       type: object
       properties:
         id:
@@ -9,7 +10,8 @@ entities:
         name:
           type: string
   posts:
-    stream:
+    entity: posts
+    schema:
       type: object
       properties:
         id:

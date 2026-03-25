@@ -1,5 +1,5 @@
-system:
-  type: db1
+entity: posts
+system: db1
 schema:
   type: object
   properties:

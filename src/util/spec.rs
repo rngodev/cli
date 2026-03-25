@@ -19,36 +19,36 @@ pub fn load_spec_from_file(spec_path: String) -> Result<Value> {
 
 pub fn load_spec_from_project_directory(config: &Config) -> Result<Value> {
     let rngo_path = Path::new(".rngo");
-    let entities_path = rngo_path.join("entities");
+    let effects_path = rngo_path.join("effects");
 
-    let entity_files = fs::read_dir(entities_path.clone()).with_context(|| {
+    let effect_files = fs::read_dir(effects_path.clone()).with_context(|| {
         format!(
-            "Failed to read from entities directory at '{}'",
-            entities_path.to_string_lossy()
+            "Failed to read from effects directory at '{}'",
+            effects_path.to_string_lossy()
         )
     })?;
 
-    let mut entities_map = Map::new();
+    let mut effects_map = Map::new();
 
-    for entry in entity_files {
+    for entry in effect_files {
         let entry = entry?;
         let path = entry.path();
 
         let content = fs::read_to_string(&path)?;
         let yaml_value: serde_yaml::Value = serde_yaml::from_str(&content).with_context(|| {
-            format!("Failed to parse entity file at {}", path.to_string_lossy())
+            format!("Failed to parse effect file at {}", path.to_string_lossy())
         })?;
         let json_value: serde_json::Value = serde_json::to_value(yaml_value)?;
 
         if let Some(filename) = path.file_stem().and_then(|s| s.to_str()) {
-            entities_map.insert(filename.to_string(), json_value);
+            effects_map.insert(filename.to_string(), json_value);
         }
     }
 
-    if entities_map.is_empty() {
+    if effects_map.is_empty() {
         bail!(
-            "No entities found under {}",
-            entities_path.to_string_lossy()
+            "No effects found under {}",
+            effects_path.to_string_lossy()
         )
     }
 
@@ -83,7 +83,7 @@ pub fn load_spec_from_project_directory(config: &Config) -> Result<Value> {
     if !systems_map.is_empty() {
         spec.insert("systems".into(), serde_json::Value::Object(systems_map));
     }
-    spec.insert("entities".into(), serde_json::Value::Object(entities_map));
+    spec.insert("effects".into(), serde_json::Value::Object(effects_map));
 
     Ok(serde_json::Value::Object(spec))
 }

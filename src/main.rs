@@ -1,4 +1,4 @@
-mod entities;
+mod effects;
 mod init;
 mod login;
 mod logout;
@@ -28,10 +28,10 @@ enum Commands {
     Login {},
     /// Delete the API key saved for API authentication.
     Logout {},
-    /// Commands for working with entities.
-    Entities {
+    /// Commands for working with effects.
+    Effects {
         #[command(subcommand)]
-        command: EntitiesCommands,
+        command: EffectsCommands,
     },
     /// Commands for working with systems.
     Systems {
@@ -51,8 +51,8 @@ enum Commands {
 }
 
 #[derive(Debug, Subcommand)]
-enum EntitiesCommands {
-    /// Infer entities using an LLM.
+enum EffectsCommands {
+    /// Infer effects using an LLM.
     Infer {
         /// Output the prompt instead of running the agent
         #[arg(long)]
@@ -86,9 +86,9 @@ async fn main() -> Result<()> {
         Commands::Init {} => init::init().await,
         Commands::Login {} => login::login().await,
         Commands::Logout {} => logout::logout().await,
-        Commands::Entities { command } => match command {
-            EntitiesCommands::Infer { prompt, verbose } => {
-                entities::infer_entities(prompt, verbose).await
+        Commands::Effects { command } => match command {
+            EffectsCommands::Infer { prompt, verbose } => {
+                effects::infer_effects(prompt, verbose).await
             }
         },
         Commands::Systems { command } => match command {

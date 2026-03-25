@@ -236,12 +236,12 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
     }
 
     if !stdout {
-        let entities_map: serde_json::Map<String, Value> = simulation_run_data
-            .entities
+        let effects_map: serde_json::Map<String, Value> = simulation_run_data
+            .effects
             .into_iter()
-            .map(|entity| {
-                let key = entity.key.clone();
-                let mut value = serde_json::to_value(entity).unwrap();
+            .map(|effect| {
+                let key = effect.key.clone();
+                let mut value = serde_json::to_value(effect).unwrap();
                 if let Some(obj) = value.as_object_mut() {
                     obj.remove("key");
                 }
@@ -265,7 +265,7 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
         let mut spec = serde_json::Map::new();
         spec.insert("seed".to_string(), json!(simulation.seed));
         spec.insert("parent".to_string(), json!(simulation.parent));
-        spec.insert("entities".to_string(), json!(entities_map));
+        spec.insert("effects".to_string(), json!(effects_map));
         spec.insert("systems".to_string(), json!(systems_map));
 
         let spec_path = simulation_run_directory.join("spec.yml");

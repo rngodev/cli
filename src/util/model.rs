@@ -46,16 +46,11 @@ pub struct LocalSystem {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct EntitySystem {
-    #[serde(rename = "type")]
-    pub stype: String,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Entity {
+pub struct Effect {
     pub key: String,
+    pub entity: String,
     pub format: Option<Format>,
-    pub system: Option<EntitySystem>,
+    pub system: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -75,6 +70,6 @@ pub struct SimulationRun {
 pub struct SimulationRunData {
     pub simulation: String,
     pub index: u64,
-    pub entities: Vec<Entity>,
+    pub effects: Vec<Effect>,
     pub systems: Vec<System>,
 }

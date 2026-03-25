@@ -1,7 +1,8 @@
 seed: 1
-entities:
+effects:
   users:
-    stream:
+    entity: users
+    schema:
       type: object
       properties:
         id:
