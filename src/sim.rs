@@ -135,12 +135,20 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
         }
         let symlink_result = {
             #[cfg(unix)]
-            { std::os::unix::fs::symlink(simulation_run.index.to_string(), last_symlink) }
+            {
+                std::os::unix::fs::symlink(simulation_run.index.to_string(), last_symlink)
+            }
             #[cfg(windows)]
-            { std::os::windows::fs::symlink_dir(simulation_run.index.to_string(), last_symlink) }
+            {
+                std::os::windows::fs::symlink_dir(simulation_run.index.to_string(), last_symlink)
+            }
         };
         if let Err(e) = symlink_result {
-            eprintln!("Warning: could not create symlink at {}: {}", last_symlink.display(), e);
+            eprintln!(
+                "Warning: could not create symlink at {}: {}",
+                last_symlink.display(),
+                e
+            );
         }
     }
 

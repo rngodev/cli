@@ -49,6 +49,8 @@ pub struct LocalSystem {
 pub struct Effect {
     pub key: String,
     pub entity: String,
+    #[serde(rename = "type")]
+    pub etype: String,
     pub format: Option<Format>,
     pub system: Option<String>,
 }

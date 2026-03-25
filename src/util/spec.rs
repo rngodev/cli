@@ -38,7 +38,11 @@ pub fn load_spec_from_project_directory(config: &Config) -> Result<Value> {
         let yaml_value: serde_yaml::Value = serde_yaml::from_str(&content).with_context(|| {
             format!("Failed to parse effect file at {}", path.to_string_lossy())
         })?;
-        let json_value: serde_json::Value = serde_json::to_value(yaml_value)?;
+        let mut json_value: serde_json::Value = serde_json::to_value(yaml_value)?;
+
+        if let Some(obj) = json_value.as_object_mut() {
+            obj.entry("type").or_insert_with(|| "state.create".into());
+        }
 
         if let Some(filename) = path.file_stem().and_then(|s| s.to_str()) {
             effects_map.insert(filename.to_string(), json_value);
