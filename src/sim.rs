@@ -17,9 +17,13 @@ use std::path::Path;
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "type")]
 pub enum EventData {
-    Create {
+    Effect {
         id: u64,
-        entity: String,
+        key: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        system: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        entity: Option<String>,
         offset: i64,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         metadata: Vec<Metadata>,
@@ -30,6 +34,10 @@ pub enum EventData {
     },
     Error {
         id: u64,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        effect: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        system: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         entity: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -229,7 +237,7 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
                         Ok(event_data) => {
                             // Track the last event ID for reconnection
                             last_event_id = Some(match &event_data {
-                                EventData::Create { id, .. } => *id,
+                                EventData::Effect { id, .. } => *id,
                                 EventData::Error { id, .. } => *id,
                             });
                             simulation_sink.write_event(event_data);

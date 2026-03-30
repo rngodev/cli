@@ -48,11 +48,9 @@ pub struct LocalSystem {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Effect {
     pub key: String,
-    pub entity: String,
-    #[serde(rename = "type")]
-    pub etype: String,
-    pub format: Option<Format>,
     pub system: Option<String>,
+    pub entity: Option<String>,
+    pub format: Option<Format>,
 }
 
 #[derive(Clone, Debug, Deserialize)]

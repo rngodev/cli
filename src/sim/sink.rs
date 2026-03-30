@@ -32,7 +32,7 @@ impl SimulationSink {
 
     pub fn write_event(&mut self, event_data: EventData) {
         match &event_data {
-            EventData::Create { metadata, .. } if !metadata.is_empty() => {
+            EventData::Effect { metadata, .. } if !metadata.is_empty() => {
                 if let Some(ref mut sink) = self.samples_sink
                     && let Ok(json) = serde_json::to_string(&event_data)
                 {
@@ -50,13 +50,10 @@ impl SimulationSink {
             if let Ok(str) = serde_json::to_string(&event_data) {
                 println!("{}", str)
             }
-        } else if let EventData::Create {
-            entity,
-            value,
-            format,
-            ..
+        } else if let EventData::Effect {
+            key, value, format, ..
         } = event_data
-            && let Some(effect) = self.effects.get(&entity)
+            && let Some(effect) = self.effects.get(&key)
             && let Some(system_sink) = self.system_sinks.get_mut(&effect.system_key)
         {
             let value = match effect.format_type {
@@ -96,12 +93,12 @@ impl TryFrom<SimulationRunData> for SimulationSink {
         let mut systems_initialized: HashMap<String, ()> = HashMap::new();
 
         for effect in simulation_run_data.effects.iter() {
-            if let Some(system_key_str) = &effect.system {
+            if let Some(system_key) = &effect.system {
                 let system = simulation_run_data
                     .systems
                     .iter()
-                    .find(|s| s.key == *system_key_str)
-                    .with_context(|| format!("Could not resolve system {}", system_key_str))?;
+                    .find(|s| s.key == *system_key)
+                    .with_context(|| format!("Could not resolve system {}", system_key))?;
 
                 #[cfg(target_os = "windows")]
                 let (shell, flag) = ("cmd", "/C");
@@ -111,7 +108,7 @@ impl TryFrom<SimulationRunData> for SimulationSink {
 
                 // Run the 'before' command once per system if it exists
                 if let Some(before_command) = &system.import.before
-                    && !systems_initialized.contains_key(system_key_str.as_str())
+                    && !systems_initialized.contains_key(system_key.as_str())
                 {
                     let status = Command::new(shell)
                         .arg(flag)
@@ -123,19 +120,19 @@ impl TryFrom<SimulationRunData> for SimulationSink {
                         .with_context(|| {
                             format!(
                                 "Could not run before command for system {}:\n\n{}",
-                                system_key_str, before_command
+                                system_key, before_command
                             )
                         })?;
 
                     if !status.success() {
                         anyhow::bail!(
                             "Before command failed for system {} with status: {}",
-                            system_key_str,
+                            system_key,
                             status
                         );
                     }
 
-                    systems_initialized.insert(system_key_str.clone(), ());
+                    systems_initialized.insert(system_key.clone(), ());
                 }
 
                 let mut child = Command::new(shell)
@@ -148,16 +145,16 @@ impl TryFrom<SimulationRunData> for SimulationSink {
                     .with_context(|| {
                         format!(
                             "Could not run import command for system {}:\n\n{}",
-                            system_key_str, system.import.command
+                            system_key, system.import.command
                         )
                     })?;
 
                 let child_stdin = child.stdin.take().expect("No stdin");
 
-                let system_key = system_key_str.clone();
+                let system_key = system_key.clone();
 
                 simulation_sink.effects.insert(
-                    effect.entity.clone(),
+                    effect.key.clone(),
                     Effect {
                         system_key: system_key.clone(),
                         format_type: system.format.otype.clone(),
@@ -173,8 +170,7 @@ impl TryFrom<SimulationRunData> for SimulationSink {
                     FormatType::Json => ("jsonl", "json"),
                 };
 
-                let file_path =
-                    simulation_directory.join(format!("{}.{}", effect.entity, extension));
+                let file_path = simulation_directory.join(format!("{}.{}", effect.key, extension));
 
                 let file = OpenOptions::new()
                     .create(true)
@@ -182,10 +178,14 @@ impl TryFrom<SimulationRunData> for SimulationSink {
                     .open(file_path.clone())
                     .unwrap_or_else(|_| panic!("Failed to open file at {}", file_path.display()));
 
-                let system_key = format!("{}_{}", system_type, effect.entity);
+                let system_key = if let Some(entity) = &effect.entity {
+                    format!("{}_{}", system_type, entity)
+                } else {
+                    format!("{}_{}", system_type, effect.key)
+                };
 
                 simulation_sink.effects.insert(
-                    effect.entity.clone(),
+                    effect.key.clone(),
                     Effect {
                         system_key: system_key.clone(),
                         format_type: format.otype.clone(),
