@@ -1,7 +1,6 @@
 seed: 1
 effects:
-  users:
-    entity: users
+  users.create:
     schema:
       type: object
       properties:

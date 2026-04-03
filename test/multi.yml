@@ -1,7 +1,6 @@
 seed: 1
 effects:
-  users:
-    entity: users
+  users.create:
     schema:
       type: object
       properties:
@@ -9,8 +8,7 @@ effects:
           type: integer
         name:
           type: string
-  posts:
-    entity: posts
+  posts.create:
     schema:
       type: object
       properties:
