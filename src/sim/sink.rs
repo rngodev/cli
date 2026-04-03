@@ -51,9 +51,12 @@ impl SimulationSink {
                 println!("{}", str)
             }
         } else if let EventData::Effect {
-            key, value, format, ..
+            effect,
+            value,
+            format,
+            ..
         } = event_data
-            && let Some(effect) = self.effects.get(&key)
+            && let Some(effect) = self.effects.get(&effect)
             && let Some(system_sink) = self.system_sinks.get_mut(&effect.system_key)
         {
             let value = match effect.format_type {

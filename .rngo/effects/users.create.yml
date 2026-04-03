@@ -1,5 +1,6 @@
-entity: users
 system: db1
+format:
+  table: users
 schema:
   type: object
   properties:

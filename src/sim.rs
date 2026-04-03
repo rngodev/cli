@@ -19,11 +19,9 @@ use std::path::Path;
 pub enum EventData {
     Effect {
         id: u64,
-        key: String,
+        effect: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         system: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        entity: Option<String>,
         offset: i64,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         metadata: Vec<Metadata>,
@@ -38,8 +36,6 @@ pub enum EventData {
         effect: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         system: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        entity: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         offset: Option<i64>,
         #[serde(skip_serializing_if = "Option::is_none")]
