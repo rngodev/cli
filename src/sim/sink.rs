@@ -8,14 +8,14 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 
 pub struct SimulationSink {
-    entities: HashMap<String, Entity>,
+    effects: HashMap<String, Effect>,
     system_sinks: HashMap<String, Box<dyn Write>>,
     stream: bool,
     samples_sink: Option<Box<dyn Write>>,
 }
 
 #[derive(Debug)]
-struct Entity {
+struct Effect {
     system_key: String,
     format_type: FormatType,
 }
@@ -24,7 +24,7 @@ impl SimulationSink {
     pub fn stream() -> Self {
         SimulationSink {
             system_sinks: HashMap::new(),
-            entities: HashMap::new(),
+            effects: HashMap::new(),
             stream: true,
             samples_sink: None,
         }
@@ -32,7 +32,7 @@ impl SimulationSink {
 
     pub fn write_event(&mut self, event_data: EventData) {
         match &event_data {
-            EventData::Create { metadata, .. } if !metadata.is_empty() => {
+            EventData::Effect { metadata, .. } if !metadata.is_empty() => {
                 if let Some(ref mut sink) = self.samples_sink
                     && let Ok(json) = serde_json::to_string(&event_data)
                 {
@@ -50,16 +50,16 @@ impl SimulationSink {
             if let Ok(str) = serde_json::to_string(&event_data) {
                 println!("{}", str)
             }
-        } else if let EventData::Create {
-            entity,
+        } else if let EventData::Effect {
+            effect,
             value,
             format,
             ..
         } = event_data
-            && let Some(entity) = self.entities.get(&entity)
-            && let Some(system_sink) = self.system_sinks.get_mut(&entity.system_key)
+            && let Some(effect) = self.effects.get(&effect)
+            && let Some(system_sink) = self.system_sinks.get_mut(&effect.system_key)
         {
-            let value = match entity.format_type {
+            let value = match effect.format_type {
                 FormatType::Json => &value.expect("value for JSON entities").to_string(),
                 _ => &format.expect("format for non-JSON entities"),
             };
@@ -81,7 +81,7 @@ impl TryFrom<SimulationRunData> for SimulationSink {
 
         let mut simulation_sink = SimulationSink {
             system_sinks: HashMap::new(),
-            entities: HashMap::new(),
+            effects: HashMap::new(),
             stream: false,
             samples_sink: Some(Box::new(BufWriter::new(
                 OpenOptions::new()
@@ -95,15 +95,13 @@ impl TryFrom<SimulationRunData> for SimulationSink {
         // Track which systems have had their 'before' command run
         let mut systems_initialized: HashMap<String, ()> = HashMap::new();
 
-        for entity in simulation_run_data.entities.iter() {
-            if let Some(entity_system) = &entity.system {
+        for effect in simulation_run_data.effects.iter() {
+            if let Some(system_key) = &effect.system {
                 let system = simulation_run_data
                     .systems
                     .iter()
-                    .find(|s| s.key == entity_system.stype)
-                    .with_context(|| {
-                        format!("Could not resolve system type {}", entity_system.stype)
-                    })?;
+                    .find(|s| s.key == *system_key)
+                    .with_context(|| format!("Could not resolve system {}", system_key))?;
 
                 #[cfg(target_os = "windows")]
                 let (shell, flag) = ("cmd", "/C");
@@ -113,7 +111,7 @@ impl TryFrom<SimulationRunData> for SimulationSink {
 
                 // Run the 'before' command once per system if it exists
                 if let Some(before_command) = &system.import.before
-                    && !systems_initialized.contains_key(&entity_system.stype)
+                    && !systems_initialized.contains_key(system_key.as_str())
                 {
                     let status = Command::new(shell)
                         .arg(flag)
@@ -125,19 +123,19 @@ impl TryFrom<SimulationRunData> for SimulationSink {
                         .with_context(|| {
                             format!(
                                 "Could not run before command for system {}:\n\n{}",
-                                entity_system.stype, before_command
+                                system_key, before_command
                             )
                         })?;
 
                     if !status.success() {
                         anyhow::bail!(
                             "Before command failed for system {} with status: {}",
-                            entity_system.stype,
+                            system_key,
                             status
                         );
                     }
 
-                    systems_initialized.insert(entity_system.stype.clone(), ());
+                    systems_initialized.insert(system_key.clone(), ());
                 }
 
                 let mut child = Command::new(shell)
@@ -150,17 +148,17 @@ impl TryFrom<SimulationRunData> for SimulationSink {
                     .with_context(|| {
                         format!(
                             "Could not run import command for system {}:\n\n{}",
-                            entity_system.stype, system.import.command
+                            system_key, system.import.command
                         )
                     })?;
 
                 let child_stdin = child.stdin.take().expect("No stdin");
 
-                let system_key = entity_system.stype.clone();
+                let system_key = system_key.clone();
 
-                simulation_sink.entities.insert(
-                    entity.key.clone(),
-                    Entity {
+                simulation_sink.effects.insert(
+                    effect.key.clone(),
+                    Effect {
                         system_key: system_key.clone(),
                         format_type: system.format.otype.clone(),
                     },
@@ -169,13 +167,13 @@ impl TryFrom<SimulationRunData> for SimulationSink {
                 simulation_sink
                     .system_sinks
                     .insert(system_key, Box::new(child_stdin));
-            } else if let Some(format) = &entity.format {
+            } else if let Some(format) = &effect.format {
                 let (extension, system_type) = match format.otype {
                     FormatType::Sql => ("sql", "sql"),
                     FormatType::Json => ("jsonl", "json"),
                 };
 
-                let file_path = simulation_directory.join(format!("{}.{}", entity.key, extension));
+                let file_path = simulation_directory.join(format!("{}.{}", effect.key, extension));
 
                 let file = OpenOptions::new()
                     .create(true)
@@ -183,11 +181,15 @@ impl TryFrom<SimulationRunData> for SimulationSink {
                     .open(file_path.clone())
                     .unwrap_or_else(|_| panic!("Failed to open file at {}", file_path.display()));
 
-                let system_key = format!("{}_{}", system_type, entity.key);
+                let system_key = if let Some(entity) = &effect.entity {
+                    format!("{}_{}", system_type, entity)
+                } else {
+                    format!("{}_{}", system_type, effect.key)
+                };
 
-                simulation_sink.entities.insert(
-                    entity.key.clone(),
-                    Entity {
+                simulation_sink.effects.insert(
+                    effect.key.clone(),
+                    Effect {
                         system_key: system_key.clone(),
                         format_type: format.otype.clone(),
                     },

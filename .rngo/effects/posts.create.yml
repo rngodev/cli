@@ -1,5 +1,6 @@
-system:
-  type: db1
+system: db1
+format:
+  table: posts
 schema:
   type: object
   properties:
@@ -13,4 +14,4 @@ schema:
       variables:
         user:
           type: reference
-          entity: users
+          effect: users.create

@@ -17,9 +17,11 @@ use std::path::Path;
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "type")]
 pub enum EventData {
-    Create {
+    Effect {
         id: u64,
-        entity: String,
+        effect: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        system: Option<String>,
         offset: i64,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         metadata: Vec<Metadata>,
@@ -31,7 +33,9 @@ pub enum EventData {
     Error {
         id: u64,
         #[serde(skip_serializing_if = "Option::is_none")]
-        entity: Option<String>,
+        effect: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        system: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         offset: Option<i64>,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -135,12 +139,20 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
         }
         let symlink_result = {
             #[cfg(unix)]
-            { std::os::unix::fs::symlink(simulation_run.index.to_string(), last_symlink) }
+            {
+                std::os::unix::fs::symlink(simulation_run.index.to_string(), last_symlink)
+            }
             #[cfg(windows)]
-            { std::os::windows::fs::symlink_dir(simulation_run.index.to_string(), last_symlink) }
+            {
+                std::os::windows::fs::symlink_dir(simulation_run.index.to_string(), last_symlink)
+            }
         };
         if let Err(e) = symlink_result {
-            eprintln!("Warning: could not create symlink at {}: {}", last_symlink.display(), e);
+            eprintln!(
+                "Warning: could not create symlink at {}: {}",
+                last_symlink.display(),
+                e
+            );
         }
     }
 
@@ -221,7 +233,7 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
                         Ok(event_data) => {
                             // Track the last event ID for reconnection
                             last_event_id = Some(match &event_data {
-                                EventData::Create { id, .. } => *id,
+                                EventData::Effect { id, .. } => *id,
                                 EventData::Error { id, .. } => *id,
                             });
                             simulation_sink.write_event(event_data);
@@ -236,12 +248,12 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
     }
 
     if !stdout {
-        let entities_map: serde_json::Map<String, Value> = simulation_run_data
-            .entities
+        let effects_map: serde_json::Map<String, Value> = simulation_run_data
+            .effects
             .into_iter()
-            .map(|entity| {
-                let key = entity.key.clone();
-                let mut value = serde_json::to_value(entity).unwrap();
+            .map(|effect| {
+                let key = effect.key.clone();
+                let mut value = serde_json::to_value(effect).unwrap();
                 if let Some(obj) = value.as_object_mut() {
                     obj.remove("key");
                 }
@@ -265,7 +277,7 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
         let mut spec = serde_json::Map::new();
         spec.insert("seed".to_string(), json!(simulation.seed));
         spec.insert("parent".to_string(), json!(simulation.parent));
-        spec.insert("entities".to_string(), json!(entities_map));
+        spec.insert("effects".to_string(), json!(effects_map));
         spec.insert("systems".to_string(), json!(systems_map));
 
         let spec_path = simulation_run_directory.join("spec.yml");

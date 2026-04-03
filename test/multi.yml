@@ -1,15 +1,15 @@
 seed: 1
-entities:
-  users:
-    stream:
+effects:
+  users.create:
+    schema:
       type: object
       properties:
         id:
           type: integer
         name:
           type: string
-  posts:
-    stream:
+  posts.create:
+    schema:
       type: object
       properties:
         id:
@@ -18,4 +18,4 @@ entities:
           type: string
         author:
           type: reference
-          entity: users
+          effect: users.create

@@ -7,7 +7,7 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-pub async fn infer_entities(prompt_only: bool, verbose: bool) -> Result<()> {
+pub async fn infer_effects(prompt_only: bool, verbose: bool) -> Result<()> {
     let _ = dotenvy::dotenv();
 
     let config = crate::util::config::get_config()?;
@@ -15,7 +15,7 @@ pub async fn infer_entities(prompt_only: bool, verbose: bool) -> Result<()> {
 
     let response = client
         .get(format!(
-            "{docs_url}/llm/skills/infer-entities.md",
+            "{docs_url}/llm/skills/infer-effects.md",
             docs_url = config.docs_url
         ))
         .send()
@@ -63,9 +63,9 @@ pub async fn infer_entities(prompt_only: bool, verbose: bool) -> Result<()> {
     }
 
     let inference_instructions = if system_prompts.is_empty() {
-        "No systems in this project provide context, so you should infer entity definitions from migrations files, schema defintions and data access code."
+        "No systems in this project provide context, so you should infer effect definitions from migrations files, schema defintions and data access code."
     } else {
-        "The remainder of this section contains context about each system for this application. You should use it to infer entity definitions."
+        "The remainder of this section contains context about each system for this application. You should use it to infer effect definitions."
     };
 
     let system_prompts = system_prompts.join("\n\n");
@@ -78,24 +78,24 @@ pub async fn infer_entities(prompt_only: bool, verbose: bool) -> Result<()> {
     }
 
     // Run the prompt through the configured AI agent
-    run_prompt(&config, &content, verbose, "entity inference")?;
+    run_prompt(&config, &content, verbose, "effect inference")?;
 
     // Summarize results
-    summarize_entities()?;
+    summarize_effects()?;
 
     Ok(())
 }
 
-fn summarize_entities() -> Result<()> {
-    let entities_dir = Path::new(".rngo/entities");
+fn summarize_effects() -> Result<()> {
+    let effects_dir = Path::new(".rngo/effects");
 
-    if !entities_dir.exists() {
-        println!("No entities directory found at .rngo/entities");
+    if !effects_dir.exists() {
+        println!("No effects directory found at .rngo/effects");
         return Ok(());
     }
 
-    let entries = fs::read_dir(entities_dir)?;
-    let mut entity_files: Vec<String> = Vec::new();
+    let entries = fs::read_dir(effects_dir)?;
+    let mut effect_files: Vec<String> = Vec::new();
 
     for entry in entries.flatten() {
         let path = entry.path();
@@ -106,22 +106,22 @@ fn summarize_entities() -> Result<()> {
             if (ext == Some("yml") || ext == Some("yaml"))
                 && let Some(stem) = path.file_stem().and_then(|s| s.to_str())
             {
-                entity_files.push(stem.to_string());
+                effect_files.push(stem.to_string());
             }
         }
     }
 
-    entity_files.sort();
+    effect_files.sort();
 
-    if entity_files.is_empty() {
-        println!("No entity definition files found in .rngo/entities/");
+    if effect_files.is_empty() {
+        println!("No effect definition files found in .rngo/effects/");
     } else {
-        println!("Success! Entity definitions created:");
-        for entity in entity_files {
-            println!("  - {}", entity);
+        println!("Success! Effect definitions created:");
+        for effect in effect_files {
+            println!("  - {}", effect);
         }
         println!(
-            "Learn how to further customize entities at https://rngo.dev/docs/concepts/entity"
+            "Learn how to further customize effects at https://rngo.dev/docs/concepts/effect"
         );
     }
 

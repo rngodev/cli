@@ -1,5 +1,6 @@
-system:
-  type: db1
+system: db1
+format:
+  table: users
 schema:
   type: object
   properties:
