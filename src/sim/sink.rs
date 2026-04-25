@@ -1,5 +1,4 @@
-use crate::sim::EventData;
-use crate::util::model::{FormatType, SimulationRunData};
+use crate::model::{EventData, FormatType, SimulationRunData};
 use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::fs::OpenOptions;

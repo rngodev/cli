@@ -1,11 +1,15 @@
-use crate::util::ai::run_prompt;
+use crate::ai::run_prompt;
 use anyhow::Result;
 use reqwest::StatusCode;
 use std::fs;
 use std::path::Path;
 
-pub async fn infer_systems(prompt_only: bool, verbose: bool, agent: Option<crate::util::config::AiAgent>) -> Result<()> {
-    let config = crate::util::config::get_config()?;
+pub async fn infer(
+    prompt_only: bool,
+    verbose: bool,
+    agent: Option<crate::config::AiAgent>,
+) -> Result<()> {
+    let config = crate::config::get_config()?;
     let client = reqwest::Client::new();
 
     let response = client
