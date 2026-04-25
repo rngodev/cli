@@ -4,7 +4,7 @@ use reqwest::StatusCode;
 use std::fs;
 use std::path::Path;
 
-pub async fn infer_systems(prompt_only: bool, verbose: bool) -> Result<()> {
+pub async fn infer_systems(prompt_only: bool, verbose: bool, agent: Option<crate::util::config::AiAgent>) -> Result<()> {
     let config = crate::util::config::get_config()?;
     let client = reqwest::Client::new();
 
@@ -29,7 +29,7 @@ pub async fn infer_systems(prompt_only: bool, verbose: bool) -> Result<()> {
     }
 
     // Run the prompt through the configured AI agent
-    run_prompt(&config, &content, verbose, "system inference")?;
+    run_prompt(&config, &content, verbose, "system inference", agent)?;
 
     // Summarize results
     summarize_systems()?;

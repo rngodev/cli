@@ -1,4 +1,5 @@
 use anyhow::{Context, Result, anyhow};
+use clap::ValueEnum;
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 use std::fs::{self, File};
@@ -32,7 +33,7 @@ pub struct UserConfig {
     pub docs_url: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, ValueEnum)]
 #[serde(rename_all = "camelCase")]
 pub enum AiAgent {
     Claude,

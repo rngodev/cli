@@ -8,6 +8,7 @@ pub mod util;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use util::config::AiAgent;
 
 #[derive(Debug, Parser)]
 #[command(name = "rngo")]
@@ -29,14 +30,14 @@ enum Commands {
     /// Delete the API key saved for API authentication.
     Logout {},
     /// Commands for working with effects.
-    Effects {
+    Effect {
         #[command(subcommand)]
-        command: EffectsCommands,
+        command: EffectCommands,
     },
     /// Commands for working with systems.
-    Systems {
+    System {
         #[command(subcommand)]
-        command: SystemsCommands,
+        command: SystemCommands,
     },
     /// Create a simulation and download the data.
     Sim {
@@ -51,7 +52,7 @@ enum Commands {
 }
 
 #[derive(Debug, Subcommand)]
-enum EffectsCommands {
+enum EffectCommands {
     /// Infer effects using an LLM.
     Infer {
         /// Output the prompt instead of running the agent
@@ -61,11 +62,15 @@ enum EffectsCommands {
         /// Show the agent's output (verbose mode)
         #[arg(short, long)]
         verbose: bool,
+
+        /// Agent to use, overriding config
+        #[arg(short, long)]
+        agent: Option<AiAgent>,
     },
 }
 
 #[derive(Debug, Subcommand)]
-enum SystemsCommands {
+enum SystemCommands {
     /// Infer systems using an LLM - outputs an LLM skill document.
     Infer {
         /// Output the prompt instead of running Claude
@@ -75,6 +80,10 @@ enum SystemsCommands {
         /// Show Claude's output (verbose mode)
         #[arg(short, long)]
         verbose: bool,
+
+        /// Agent to use, overriding config
+        #[arg(short, long)]
+        agent: Option<AiAgent>,
     },
 }
 
@@ -86,10 +95,19 @@ async fn main() -> Result<()> {
         Commands::Init {} => init::init().await,
         Commands::Login {} => login::login().await,
         Commands::Logout {} => logout::logout().await,
-        Commands::Effects { command } => match command {
-            EffectsCommands::Infer { prompt, verbose } => {
-                effects::infer_effects(prompt, verbose).await
-            }
+        Commands::Effect { command } => match command {
+            EffectCommands::Infer {
+                prompt,
+                verbose,
+                agent,
+            } => effects::infer_effects(prompt, verbose, agent).await,
+        },
+        Commands::System { command } => match command {
+            SystemCommands::Infer {
+                prompt,
+                verbose,
+                agent,
+            } => systems::infer_systems(prompt, verbose, agent).await,
         },
         Commands::Systems { command } => match command {
             SystemsCommands::Infer { prompt, verbose } => {
