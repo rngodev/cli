@@ -2,7 +2,7 @@ use crate::model::{EventData, Simulation, SimulationRun};
 use crate::sim::problem::Problem;
 use crate::sim::sink::SimulationSink;
 use crate::sim::{api, load};
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, bail};
 use futures::StreamExt;
 use reqwest::StatusCode;
 use serde_json::{Value, json};
@@ -18,27 +18,22 @@ pub async fn run(file: Option<String>, stdout: bool) -> Result<()> {
 
     let client = reqwest::Client::new();
 
-    let key = config
-        .key
-        .clone()
-        .ok_or_else(|| anyhow!("key must be set in .rngo/config.yml"))?;
-
-    let sim = {
+    let (key, sim) = {
         let mut sim = if let Some(file) = file {
             load::load_sim_from_file(file)?
         } else {
             load::load_sim_from_project_directory(&config)?
         };
 
-        match sim {
-            Value::Object(ref mut map) => {
-                map.insert("output".into(), "stream".into());
-                map.remove("key");
-            }
-            _ => (),
+        if let Value::Object(ref mut map) = sim {
+            map.insert("output".into(), "stream".into());
+            let key = map
+                .remove("key")
+                .ok_or_else(|| anyhow!("simulation must have a key"))?;
+            (key, sim)
+        } else {
+            bail!("simulation is not an object")
         }
-
-        sim
     };
 
     let simulation = {
