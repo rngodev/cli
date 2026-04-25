@@ -22,11 +22,20 @@ struct Cli {
 }
 
 #[derive(Debug, Subcommand)]
-enum Commands {
+enum AuthCommands {
     /// Save an API key for API authentication.
     Login {},
     /// Delete the API key saved for API authentication.
     Logout {},
+}
+
+#[derive(Debug, Subcommand)]
+enum Commands {
+    /// Commands for authentication.
+    Auth {
+        #[command(subcommand)]
+        command: AuthCommands,
+    },
     /// Commands for working with effects.
     Effect {
         #[command(subcommand)]
@@ -101,8 +110,10 @@ async fn main() -> Result<()> {
     let args = Cli::parse();
 
     match args.command {
-        Commands::Login {} => auth::login().await,
-        Commands::Logout {} => auth::logout().await,
+        Commands::Auth { command } => match command {
+            AuthCommands::Login {} => auth::login().await,
+            AuthCommands::Logout {} => auth::logout().await,
+        },
         Commands::Effect { command } => match command {
             EffectCommands::Infer {
                 prompt,
