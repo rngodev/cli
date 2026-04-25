@@ -29,7 +29,11 @@ pub async fn run(file: Option<String>, stdout: bool) -> Result<()> {
             map.insert("output".into(), "stream".into());
             let key = map
                 .remove("key")
-                .ok_or_else(|| anyhow!("simulation must have a key"))?;
+                .ok_or_else(|| anyhow!("simulation must have a key"))?
+                .as_str()
+                .ok_or_else(|| anyhow!("simulation key must be a string"))?
+                .to_string();
+
             (key, sim)
         } else {
             bail!("simulation is not an object")
