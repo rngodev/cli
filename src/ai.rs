@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::io::Write;
 use std::process::{Command, Stdio};
 
-use crate::util::config::{AiAgent, Config};
+use crate::config::{AiAgent, Config};
 
 pub fn run_prompt(
     config: &Config,
@@ -43,8 +43,6 @@ pub fn run_prompt(
         }
     };
 
-    // Spawn the CLI process
-    // In verbose mode, inherit stdout to see the agent's output
     let mut child = cmd
         .stdin(if needs_stdin {
             Stdio::piped()
@@ -63,12 +61,10 @@ pub fn run_prompt(
         })
         .spawn()?;
 
-    // Write the content to the agent's stdin if needed
     if needs_stdin && let Some(mut stdin) = child.stdin.take() {
         stdin.write_all(content.as_bytes())?;
     }
 
-    // Wait for the process to complete
     let status = child.wait()?;
 
     if !status.success() {

@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -68,8 +69,45 @@ pub struct SimulationRun {
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct SimulationRunData {
-    pub simulation: String,
     pub index: u64,
     pub effects: Vec<Effect>,
     pub systems: Vec<System>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+#[serde(tag = "type")]
+pub enum EventData {
+    Effect {
+        id: u64,
+        effect: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        system: Option<String>,
+        offset: i64,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        metadata: Vec<Metadata>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        value: Option<Value>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        format: Option<String>,
+    },
+    Error {
+        id: u64,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        effect: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        system: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        offset: Option<i64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        path: Option<Vec<String>>,
+        message: String,
+    },
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Metadata {
+    tag: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    path: Vec<String>,
 }

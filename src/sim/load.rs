@@ -3,7 +3,7 @@ use serde_json::{Map, Value};
 use std::fs;
 use std::path::Path;
 
-use crate::util::config::Config;
+use crate::config::Config;
 
 pub fn load_sim_from_file(sim_path: String) -> Result<Value> {
     let path = Path::new(&sim_path);
@@ -50,10 +50,7 @@ pub fn load_sim_from_project_directory(config: &Config) -> Result<Value> {
     }
 
     if effects_map.is_empty() {
-        bail!(
-            "No effects found under {}",
-            effects_path.to_string_lossy()
-        )
+        bail!("No effects found under {}", effects_path.to_string_lossy())
     }
 
     let systems_map = load_systems_from_project_directory()?;
@@ -121,20 +118,4 @@ pub fn load_systems_from_project_directory() -> Result<Map<String, Value>> {
     }
 
     Ok(systems_map)
-}
-
-pub fn ensure_sim_output_is_stream(mut sim: Value) -> Value {
-    match sim {
-        Value::Object(ref mut map) => {
-            map.insert("output".into(), "stream".into());
-            sim
-        }
-        _ => sim,
-    }
-}
-
-pub fn remove_sim_key(sim: &mut Value) {
-    if let Value::Object(map) = sim {
-        map.remove("key");
-    }
 }

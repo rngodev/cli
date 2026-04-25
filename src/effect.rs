@@ -1,16 +1,20 @@
-use crate::util::ai::run_prompt;
-use crate::util::model::LocalSystem;
-use crate::util::sim::load_systems_from_project_directory;
+use crate::ai::run_prompt;
+use crate::model::LocalSystem;
+use crate::sim::load::load_systems_from_project_directory;
 use anyhow::Result;
 use reqwest::StatusCode;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-pub async fn infer_effects(prompt_only: bool, verbose: bool, agent: Option<crate::util::config::AiAgent>) -> Result<()> {
+pub async fn infer(
+    prompt_only: bool,
+    verbose: bool,
+    agent: Option<crate::config::AiAgent>,
+) -> Result<()> {
     let _ = dotenvy::dotenv();
 
-    let config = crate::util::config::get_config()?;
+    let config = crate::config::get_config()?;
     let client = reqwest::Client::new();
 
     let response = client
@@ -120,9 +124,7 @@ fn summarize_effects() -> Result<()> {
         for effect in effect_files {
             println!("  - {}", effect);
         }
-        println!(
-            "Learn how to further customize effects at https://rngo.dev/docs/concepts/effect"
-        );
+        println!("Learn how to further customize effects at https://rngo.dev/docs/concepts/effect");
     }
 
     Ok(())

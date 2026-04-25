@@ -1,14 +1,14 @@
-mod effects;
-mod init;
-mod login;
-mod logout;
+mod ai;
+mod auth;
+mod config;
+mod effect;
+mod model;
 mod sim;
-mod systems;
-pub mod util;
+mod system;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use util::config::AiAgent;
+use config::AiAgent;
 
 #[derive(Debug, Parser)]
 #[command(name = "rngo")]
@@ -101,25 +101,25 @@ async fn main() -> Result<()> {
     let args = Cli::parse();
 
     match args.command {
-        Commands::Login {} => login::login().await,
-        Commands::Logout {} => logout::logout().await,
+        Commands::Login {} => auth::login().await,
+        Commands::Logout {} => auth::logout().await,
         Commands::Effect { command } => match command {
             EffectCommands::Infer {
                 prompt,
                 verbose,
                 agent,
-            } => effects::infer_effects(prompt, verbose, agent).await,
+            } => effect::infer(prompt, verbose, agent).await,
         },
         Commands::System { command } => match command {
             SystemCommands::Infer {
                 prompt,
                 verbose,
                 agent,
-            } => systems::infer_systems(prompt, verbose, agent).await,
+            } => system::infer(prompt, verbose, agent).await,
         },
         Commands::Sim { command } => match command {
-            SimCommands::Init {} => init::init().await,
-            SimCommands::Run { file, stdout } => sim::sim(file, stdout).await,
+            SimCommands::Init {} => sim::init().await,
+            SimCommands::Run { file, stdout } => sim::run(file, stdout).await,
         },
     }
 }
