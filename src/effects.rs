@@ -1,13 +1,13 @@
 use crate::util::ai::run_prompt;
 use crate::util::model::LocalSystem;
-use crate::util::spec::load_systems_from_project_directory;
+use crate::util::sim::load_systems_from_project_directory;
 use anyhow::Result;
 use reqwest::StatusCode;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-pub async fn infer_effects(prompt_only: bool, verbose: bool) -> Result<()> {
+pub async fn infer_effects(prompt_only: bool, verbose: bool, agent: Option<crate::util::config::AiAgent>) -> Result<()> {
     let _ = dotenvy::dotenv();
 
     let config = crate::util::config::get_config()?;
@@ -78,7 +78,7 @@ pub async fn infer_effects(prompt_only: bool, verbose: bool) -> Result<()> {
     }
 
     // Run the prompt through the configured AI agent
-    run_prompt(&config, &content, verbose, "effect inference")?;
+    run_prompt(&config, &content, verbose, "effect inference", agent)?;
 
     // Summarize results
     summarize_effects()?;

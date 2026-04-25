@@ -8,6 +8,7 @@ pub mod util;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use util::config::AiAgent;
 
 #[derive(Debug, Parser)]
 #[command(name = "rngo")]
@@ -22,27 +23,36 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
-    /// Initialize rngo in the current application.
-    Init {},
     /// Save an API key for API authentication.
     Login {},
     /// Delete the API key saved for API authentication.
     Logout {},
     /// Commands for working with effects.
-    Effects {
+    Effect {
         #[command(subcommand)]
-        command: EffectsCommands,
+        command: EffectCommands,
     },
     /// Commands for working with systems.
-    Systems {
+    System {
         #[command(subcommand)]
-        command: SystemsCommands,
+        command: SystemCommands,
     },
-    /// Create a simulation and download the data.
+    /// Commands for working with simulations.
     Sim {
-        /// The spec file to use for the simulation
+        #[command(subcommand)]
+        command: SimCommands,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum SimCommands {
+    /// Initialize rngo in the current application.
+    Init {},
+    /// Create a simulation and download the data.
+    Run {
+        /// The sim file to use for the simulation
         #[arg(short, long)]
-        spec: Option<String>,
+        file: Option<String>,
 
         /// Stream the simulation data to stdout
         #[arg(long)]
@@ -51,7 +61,7 @@ enum Commands {
 }
 
 #[derive(Debug, Subcommand)]
-enum EffectsCommands {
+enum EffectCommands {
     /// Infer effects using an LLM.
     Infer {
         /// Output the prompt instead of running the agent
@@ -61,11 +71,15 @@ enum EffectsCommands {
         /// Show the agent's output (verbose mode)
         #[arg(short, long)]
         verbose: bool,
+
+        /// Agent to use, overriding config
+        #[arg(short, long)]
+        agent: Option<AiAgent>,
     },
 }
 
 #[derive(Debug, Subcommand)]
-enum SystemsCommands {
+enum SystemCommands {
     /// Infer systems using an LLM - outputs an LLM skill document.
     Infer {
         /// Output the prompt instead of running Claude
@@ -75,6 +89,10 @@ enum SystemsCommands {
         /// Show Claude's output (verbose mode)
         #[arg(short, long)]
         verbose: bool,
+
+        /// Agent to use, overriding config
+        #[arg(short, long)]
+        agent: Option<AiAgent>,
     },
 }
 
@@ -83,19 +101,25 @@ async fn main() -> Result<()> {
     let args = Cli::parse();
 
     match args.command {
-        Commands::Init {} => init::init().await,
         Commands::Login {} => login::login().await,
         Commands::Logout {} => logout::logout().await,
-        Commands::Effects { command } => match command {
-            EffectsCommands::Infer { prompt, verbose } => {
-                effects::infer_effects(prompt, verbose).await
-            }
+        Commands::Effect { command } => match command {
+            EffectCommands::Infer {
+                prompt,
+                verbose,
+                agent,
+            } => effects::infer_effects(prompt, verbose, agent).await,
         },
-        Commands::Systems { command } => match command {
-            SystemsCommands::Infer { prompt, verbose } => {
-                systems::infer_systems(prompt, verbose).await
-            }
+        Commands::System { command } => match command {
+            SystemCommands::Infer {
+                prompt,
+                verbose,
+                agent,
+            } => systems::infer_systems(prompt, verbose, agent).await,
         },
-        Commands::Sim { spec, stdout } => sim::sim(spec, stdout).await,
+        Commands::Sim { command } => match command {
+            SimCommands::Init {} => init::init().await,
+            SimCommands::Run { file, stdout } => sim::sim(file, stdout).await,
+        },
     }
 }

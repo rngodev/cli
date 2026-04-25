@@ -5,19 +5,19 @@ use std::path::Path;
 
 use crate::util::config::Config;
 
-pub fn load_spec_from_file(spec_path: String) -> Result<Value> {
-    let path = Path::new(&spec_path);
+pub fn load_sim_from_file(sim_path: String) -> Result<Value> {
+    let path = Path::new(&sim_path);
 
     if !path.exists() {
-        bail!("Could not find file '{}'", spec_path)
+        bail!("Could not find file '{}'", sim_path)
     }
 
     let file_content = fs::read_to_string(path)?;
     serde_yaml::from_str(&file_content)
-        .with_context(|| format!("Failed to parse spec file at {}", path.to_string_lossy()))
+        .with_context(|| format!("Failed to parse sim file at {}", path.to_string_lossy()))
 }
 
-pub fn load_spec_from_project_directory(config: &Config) -> Result<Value> {
+pub fn load_sim_from_project_directory(config: &Config) -> Result<Value> {
     let rngo_path = Path::new(".rngo");
     let effects_path = rngo_path.join("effects");
 
@@ -58,11 +58,11 @@ pub fn load_spec_from_project_directory(config: &Config) -> Result<Value> {
 
     let systems_map = load_systems_from_project_directory()?;
 
-    let mut spec = Map::new();
-    spec.insert("seed".into(), config.seed.into());
+    let mut sim = Map::new();
+    sim.insert("seed".into(), config.seed.into());
 
     if let Some(key) = &config.key {
-        spec.insert("key".into(), key.clone().into());
+        sim.insert("key".into(), key.clone().into());
     } else {
         let dir_name = std::env::current_dir()
             .ok()
@@ -73,23 +73,23 @@ pub fn load_spec_from_project_directory(config: &Config) -> Result<Value> {
             })
             .ok_or_else(|| anyhow!("Failed to get current directory"))?;
 
-        spec.insert("key".into(), dir_name.into());
+        sim.insert("key".into(), dir_name.into());
     }
 
     if let Some(start) = &config.start {
-        spec.insert("start".into(), start.clone().into());
+        sim.insert("start".into(), start.clone().into());
     }
 
     if let Some(end) = &config.end {
-        spec.insert("end".into(), end.clone().into());
+        sim.insert("end".into(), end.clone().into());
     }
 
     if !systems_map.is_empty() {
-        spec.insert("systems".into(), serde_json::Value::Object(systems_map));
+        sim.insert("systems".into(), serde_json::Value::Object(systems_map));
     }
-    spec.insert("effects".into(), serde_json::Value::Object(effects_map));
+    sim.insert("effects".into(), serde_json::Value::Object(effects_map));
 
-    Ok(serde_json::Value::Object(spec))
+    Ok(serde_json::Value::Object(sim))
 }
 
 pub fn load_systems_from_project_directory() -> Result<Map<String, Value>> {
@@ -123,25 +123,18 @@ pub fn load_systems_from_project_directory() -> Result<Map<String, Value>> {
     Ok(systems_map)
 }
 
-pub fn ensure_spec_output_is_stream(mut spec: Value) -> Value {
-    match spec {
+pub fn ensure_sim_output_is_stream(mut sim: Value) -> Value {
+    match sim {
         Value::Object(ref mut map) => {
             map.insert("output".into(), "stream".into());
-            spec
+            sim
         }
-        _ => spec,
+        _ => sim,
     }
 }
 
-pub fn get_spec_key(spec: &mut Value) -> Option<String> {
-    match spec {
-        Value::Object(map) => {
-            if let Some(key) = map.remove("key") {
-                key.as_str().map(|s| s.to_string())
-            } else {
-                None
-            }
-        }
-        _ => None,
+pub fn remove_sim_key(sim: &mut Value) {
+    if let Value::Object(map) = sim {
+        map.remove("key");
     }
 }
