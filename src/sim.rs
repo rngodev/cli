@@ -51,7 +51,7 @@ pub struct Metadata {
     path: Vec<String>,
 }
 
-pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
+pub async fn sim(file: Option<String>, stdout: bool) -> Result<()> {
     let config = crate::util::config::get_config()?;
     let api_key = config
         .api_key
@@ -60,41 +60,33 @@ pub async fn sim(spec: Option<String>, stdout: bool) -> Result<()> {
 
     let client = reqwest::Client::new();
 
-    let (key, spec) = {
-        let spec = if let Some(spec) = spec {
-            crate::util::spec::load_spec_from_file(spec)?
+    let key = config
+        .key
+        .clone()
+        .ok_or_else(|| anyhow!("key must be set in .rngo/config.yml"))?;
+
+    let sim = {
+        let sim = if let Some(file) = file {
+            crate::util::sim::load_sim_from_file(file)?
         } else {
-            crate::util::spec::load_spec_from_project_directory(&config)?
+            crate::util::sim::load_sim_from_project_directory(&config)?
         };
 
-        let mut spec = crate::util::spec::ensure_spec_output_is_stream(spec);
-        let key = crate::util::spec::get_spec_key(&mut spec);
-        (key, spec)
+        let mut sim = crate::util::sim::ensure_sim_output_is_stream(sim);
+        crate::util::sim::remove_sim_key(&mut sim);
+        sim
     };
 
     let simulation = {
-        let push_simulation_response = match key {
-            Some(key) => {
-                client
-                    .put(format!(
-                        "{api_url}/simulations/{key}",
-                        api_url = config.api_url,
-                        key = key
-                    ))
-                    .header("Authorization", format!("Bearer {}", api_key))
-                    .json(&spec)
-                    .send()
-                    .await?
-            }
-            None => {
-                client
-                    .post(format!("{api_url}/simulations", api_url = config.api_url))
-                    .header("Authorization", format!("Bearer {}", api_key))
-                    .json(&spec)
-                    .send()
-                    .await?
-            }
-        };
+        let push_simulation_response = client
+            .put(format!(
+                "{api_url}/simulations/{key}",
+                api_url = config.api_url,
+            ))
+            .header("Authorization", format!("Bearer {}", api_key))
+            .json(&sim)
+            .send()
+            .await?;
 
         if !push_simulation_response.status().is_success() {
             let status = push_simulation_response.status();

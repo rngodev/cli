@@ -52,7 +52,7 @@ enum SimCommands {
     Run {
         /// The sim file to use for the simulation
         #[arg(short, long)]
-        spec: Option<String>,
+        file: Option<String>,
 
         /// Stream the simulation data to stdout
         #[arg(long)]

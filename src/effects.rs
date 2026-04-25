@@ -1,6 +1,6 @@
 use crate::util::ai::run_prompt;
 use crate::util::model::LocalSystem;
-use crate::util::spec::load_systems_from_project_directory;
+use crate::util::sim::load_systems_from_project_directory;
 use anyhow::Result;
 use reqwest::StatusCode;
 use std::fs;
