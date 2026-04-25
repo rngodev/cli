@@ -23,8 +23,6 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
-    /// Initialize rngo in the current application.
-    Init {},
     /// Save an API key for API authentication.
     Login {},
     /// Delete the API key saved for API authentication.
@@ -39,9 +37,20 @@ enum Commands {
         #[command(subcommand)]
         command: SystemCommands,
     },
-    /// Create a simulation and download the data.
+    /// Commands for working with simulations.
     Sim {
-        /// The spec file to use for the simulation
+        #[command(subcommand)]
+        command: SimCommands,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum SimCommands {
+    /// Initialize rngo in the current application.
+    Init {},
+    /// Create a simulation and download the data.
+    Run {
+        /// The sim file to use for the simulation
         #[arg(short, long)]
         spec: Option<String>,
 
@@ -92,7 +101,6 @@ async fn main() -> Result<()> {
     let args = Cli::parse();
 
     match args.command {
-        Commands::Init {} => init::init().await,
         Commands::Login {} => login::login().await,
         Commands::Logout {} => logout::logout().await,
         Commands::Effect { command } => match command {
@@ -109,11 +117,9 @@ async fn main() -> Result<()> {
                 agent,
             } => systems::infer_systems(prompt, verbose, agent).await,
         },
-        Commands::Systems { command } => match command {
-            SystemsCommands::Infer { prompt, verbose } => {
-                systems::infer_systems(prompt, verbose).await
-            }
+        Commands::Sim { command } => match command {
+            SimCommands::Init {} => init::init().await,
+            SimCommands::Run { file, stdout } => sim::sim(file, stdout).await,
         },
-        Commands::Sim { spec, stdout } => sim::sim(spec, stdout).await,
     }
 }
