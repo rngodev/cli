@@ -6,11 +6,11 @@ See [rngo.dev/docs/cli](https://rngo.dev/docs/cli).
 
 ### Test
 
-Set up the database, run the checked-in simulation and inspect the db:
+Set up the database, run the project simulation and inspect the db:
 
 ```bash
-sqlite3 db1.sqlite < test/db1-schema.sql
-cargo run sim
+./script/clean-db
+cargo run sim run
 sqlite3 db1.sqlite
 ```
 
