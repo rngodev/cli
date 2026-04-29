@@ -2,22 +2,9 @@ use anyhow::Result;
 use std::io::Write;
 use std::process::{Command, Stdio};
 
-use crate::config::{AiAgent, Config};
+use crate::config::AiAgent;
 
-pub fn run_prompt(
-    config: &Config,
-    content: &str,
-    verbose: bool,
-    agent_context: &str,
-    agent_override: Option<AiAgent>,
-) -> Result<()> {
-    let agent = agent_override
-        .or_else(|| config.ai.as_ref().map(|ai| ai.agent.clone()))
-        .ok_or_else(|| anyhow::anyhow!(
-            "AI agent must be configured to run this command.\n\
-             Use the --agent flag or set ai.agent in your .rngo/config.yml or user config file:\n\n\
-             ai:\n  agent: claude  # or codex, or copilot"
-        ))?;
+pub fn run_prompt(agent: AiAgent, content: &str, verbose: bool, agent_context: &str) -> Result<()> {
 
     let (cli_name, agent_name) = match agent {
         AiAgent::Claude => ("claude", "Claude Code"),

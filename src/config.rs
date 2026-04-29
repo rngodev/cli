@@ -19,7 +19,6 @@ pub struct Config {
     pub seed: u64,
     pub start: Option<String>,
     pub end: Option<String>,
-    pub ai: Option<AiConfig>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
@@ -39,11 +38,6 @@ pub enum AiAgent {
     Claude,
     Codex,
     Copilot,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct AiConfig {
-    pub agent: AiAgent,
 }
 
 fn default_api_url() -> String {
