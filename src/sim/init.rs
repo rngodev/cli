@@ -39,7 +39,7 @@ seed: 1"#,
 
 fn ensure_gitignore_entry(project_dir: &Path) -> Result<()> {
     let gitignore_path = project_dir.join(".gitignore");
-    let entry = ".rngo/simulations";
+    let entry = ".rngo/runs";
 
     if gitignore_path.exists() {
         let content = fs::read_to_string(&gitignore_path).context("Failed to read .gitignore")?;
