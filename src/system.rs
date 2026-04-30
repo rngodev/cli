@@ -5,9 +5,8 @@ use std::fs;
 use std::path::Path;
 
 pub async fn infer(
-    prompt_only: bool,
-    verbose: bool,
     agent: Option<crate::config::AiAgent>,
+    verbose: bool,
 ) -> Result<()> {
     let config = crate::config::get_config()?;
     let client = reqwest::Client::new();
@@ -26,17 +25,15 @@ pub async fn infer(
 
     let content = response.text().await?;
 
-    // If --prompt flag is set, just output the prompt and exit
-    if prompt_only {
-        println!("{}", content);
-        return Ok(());
+    match agent {
+        None => {
+            println!("{}", content);
+        }
+        Some(agent) => {
+            run_prompt(agent, &content, verbose, "system inference")?;
+            summarize_systems()?;
+        }
     }
-
-    // Run the prompt through the configured AI agent
-    run_prompt(&config, &content, verbose, "system inference", agent)?;
-
-    // Summarize results
-    summarize_systems()?;
 
     Ok(())
 }

@@ -9,7 +9,6 @@ mod system;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use config::AiAgent;
-
 #[derive(Debug, Parser)]
 #[command(name = "rngo")]
 #[command(
@@ -57,15 +56,11 @@ enum AuthCommands {
 enum EffectCommands {
     /// Infer effects using an LLM.
     Infer {
-        /// Output the prompt instead of running the agent
-        #[arg(long)]
-        prompt: bool,
-
         /// Show the agent's output (verbose mode)
         #[arg(short, long)]
         verbose: bool,
 
-        /// Agent to use, overriding config
+        /// Run the prompt in an agent subshell instead of outputting it
         #[arg(short, long)]
         agent: Option<AiAgent>,
     },
@@ -91,15 +86,11 @@ enum SimCommands {
 enum SystemCommands {
     /// Infer systems using an LLM - outputs an LLM skill document.
     Infer {
-        /// Output the prompt instead of running Claude
-        #[arg(long)]
-        prompt: bool,
-
-        /// Show Claude's output (verbose mode)
+        /// Show the agent's output (verbose mode)
         #[arg(short, long)]
         verbose: bool,
 
-        /// Agent to use, overriding config
+        /// Run the prompt in an agent subshell instead of outputting it
         #[arg(short, long)]
         agent: Option<AiAgent>,
     },
@@ -115,18 +106,10 @@ async fn main() -> Result<()> {
             AuthCommands::Logout {} => auth::logout().await,
         },
         Commands::Effect { command } => match command {
-            EffectCommands::Infer {
-                prompt,
-                verbose,
-                agent,
-            } => effect::infer(prompt, verbose, agent).await,
+            EffectCommands::Infer { verbose, agent } => effect::infer(agent, verbose).await,
         },
         Commands::System { command } => match command {
-            SystemCommands::Infer {
-                prompt,
-                verbose,
-                agent,
-            } => system::infer(prompt, verbose, agent).await,
+            SystemCommands::Infer { verbose, agent } => system::infer(agent, verbose).await,
         },
         Commands::Sim { command } => match command {
             SimCommands::Init {} => sim::init().await,

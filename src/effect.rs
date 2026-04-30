@@ -8,9 +8,8 @@ use std::path::Path;
 use std::process::Command;
 
 pub async fn infer(
-    prompt_only: bool,
-    verbose: bool,
     agent: Option<crate::config::AiAgent>,
+    verbose: bool,
 ) -> Result<()> {
     let _ = dotenvy::dotenv();
 
@@ -75,17 +74,15 @@ pub async fn infer(
     let system_prompts = system_prompts.join("\n\n");
     let content = format!("{prompt}\n{inference_instructions}\n\n{system_prompts}");
 
-    // If --prompt flag is set, just output the prompt and exit
-    if prompt_only {
-        println!("{}", content);
-        return Ok(());
+    match agent {
+        None => {
+            println!("{}", content);
+        }
+        Some(agent) => {
+            run_prompt(agent, &content, verbose, "effect inference")?;
+            summarize_effects()?;
+        }
     }
-
-    // Run the prompt through the configured AI agent
-    run_prompt(&config, &content, verbose, "effect inference", agent)?;
-
-    // Summarize results
-    summarize_effects()?;
 
     Ok(())
 }
